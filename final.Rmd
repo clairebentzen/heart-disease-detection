@@ -1,0 +1,81 @@
+---
+title: "Final Project"
+author: "John Vincent Deniega"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r library}
+suppressPackageStartupMessages(library(caret))
+```
+
+
+```{r preprocess}
+seed <- 1
+
+#Ingest
+data <- read.csv("heart.csv") #Change to your respective local path
+head(data)
+
+#Check for missing columns
+missing_col <- colSums(is.na(data))
+missing_col # No missing columns found
+
+#Check for duplicate rows
+duplicate_row <- data[duplicated(data),]
+duplicate_row # 723 duplicate rows found
+
+data1 <- data[!duplicated(data),]
+str(data1) # 302 remaining rows found. This is still sufficient with ncol^2 < #nrows
+
+#Center and scale continuous variables
+str(data1) 
+pre_proc <- preProcess(data[c("age", "trestbps", "chol", "thalach", "oldpeak")], method = c("center", "scale"))
+data2 <- data1
+data2[c("age", "trestbps", "chol", "thalach", "oldpeak")] <- predict(pre_proc, data1[c("age", "trestbps", "chol", "thalach", "oldpeak")])
+data2
+
+#Since "thal" is not ordinal, but effectively categorical, make dummy variables
+data3 <- data2
+data3$thal <- factor(data3$thal)
+dummy <- dummyVars(~ thal, data = data3)
+dummy_col <- predict(dummy, newdata = data3)
+data3 <- cbind(data3, dummy_col)
+data3$thal <- NULL # Drop the "thal" column now that we have dummy variables
+str(data3) # ncol^2 < nrows, which still indicates sufficient sample size
+
+#Check column histograms for unusual distributions
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(tidyr))
+ggplot(gather(data3), aes(value)) +
+  geom_histogram(bins = 20) +
+  facet_wrap(~key, scales = "free")
+
+#Check for near-zero variance columns
+str(data3)
+nearZeroVar(data3) # None found
+data4 <- data3[, -nearZeroVar(data3)]
+str(data4) # Removed dummy variable "thal.0" for near-zero variance. Result: 16 columns.
+# Note: There appears to be an error in documentation where thal is actually thal+1 category
+# Normal = 1
+# Fixed Defect = 2
+# Reversable Defect = 3
+```
+
+```{r split}
+set.seed(seed)
+y <- data4$target # Extract only the target (heart disease) column as our y
+x <- data4[, !names(data4) %in% "target"] # Predictors only
+trainingRows <- createDataPartition(y, p = .80, list = FALSE) #list of indices from training
+train_y <- y[trainingRows]
+test_y <- y[-trainingRows]
+train_x <- data4[trainingRows, ] #subset predictors using only training indices
+test_x <- data4[-trainingRows, ] #subset predictors of test indices (-training)
+str(test_x)
+str(train_x)
+```
+
