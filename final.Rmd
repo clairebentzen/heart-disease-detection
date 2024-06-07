@@ -1,8 +1,12 @@
 ---
-title: "Final Project"
-author: "John Vincent Deniega"
+title: "Team 4 - Heart Disease Detection"
+author: "Claire, Bentzen, John Vincent Deniega, Ravita Kartawinata"
 date: "`r Sys.Date()`"
-output: pdf_document
+format: 
+    #html: 
+    #    toc: true
+    pdf: default
+editor: visual
 ---
 
 ```{r setup, include=FALSE}
@@ -11,33 +15,39 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r library}
 suppressPackageStartupMessages(library(caret))
+library(tidyr)
+library(tidyverse)
+library(gt)
+library(dplyr)
+library(tibble)
+suppressPackageStartupMessages(library(pROC))
 ```
 
 
 ```{r preprocess}
-seed <- 1
-
+seed <- 123
 #Ingest
 data <- read.csv("heart.csv") #Change to your respective local path
-head(data)
+```
 
+```{r preprocess}
 #Check for missing columns
 missing_col <- colSums(is.na(data))
-missing_col # No missing columns found
+cat('No missing values found: \n')
+missing_col
 
 #Check for duplicate rows
 duplicate_row <- data[duplicated(data),]
-duplicate_row # 723 duplicate rows found
+cat('Count of duplicate rows: ', nrow(duplicate_row),'\n')
 
 data1 <- data[!duplicated(data),]
-str(data1) # 302 remaining rows found. This is still sufficient with ncol^2 < #nrows
+cat('NewData dimension: ',nrow(data1),'remaining rows. This is still sufficient since ncol^2 is less than #nrows\n')
 
 #Center and scale continuous variables
-str(data1) 
-pre_proc <- preProcess(data[c("age", "trestbps", "chol", "thalach", "oldpeak")], method = c("center", "scale"))
+pre_proc <- preProcess(data1[c("age", "trestbps", "chol", "thalach", "oldpeak")], method = c("center", "scale"))
 data2 <- data1
-data2[c("age", "trestbps", "chol", "thalach", "oldpeak")] <- predict(pre_proc, data1[c("age", "trestbps", "chol", "thalach", "oldpeak")])
-data2
+data2[c("age", "trestbps", "chol", "thalach", "oldpeak")] <- 
+  predict(pre_proc, data1[c("age", "trestbps", "chol", "thalach", "oldpeak")])
 
 #Since "thal" is not ordinal, but effectively categorical, make dummy variables
 data3 <- data2
@@ -46,20 +56,25 @@ dummy <- dummyVars(~ thal, data = data3)
 dummy_col <- predict(dummy, newdata = data3)
 data3 <- cbind(data3, dummy_col)
 data3$thal <- NULL # Drop the "thal" column now that we have dummy variables
-str(data3) # ncol^2 < nrows, which still indicates sufficient sample size
+cat('NewData dimension: ',nrow(data3),'remaining rows. This is still sufficient since ncol^2 is less than #nrows \n')
+```
 
+```{r EDA}
 #Check column histograms for unusual distributions
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(tidyr))
 ggplot(gather(data3), aes(value)) +
   geom_histogram(bins = 20) +
   facet_wrap(~key, scales = "free")
+```
 
+```{r preprocess}
 #Check for near-zero variance columns
-str(data3)
-nearZeroVar(data3) # None found
+nzv <- nearZeroVar(data3)
+cat('Removed near zero predictor: ', colnames(data3)[nzv],'\n')
+
 data4 <- data3[, -nearZeroVar(data3)]
-str(data4) # Removed dummy variable "thal.0" for near-zero variance. Result: 16 columns.
+cat('NewData dimension: ',nrow(data4),'rows', ncol(data4), 'columns\n') 
 # Note: There appears to be an error in documentation where thal is actually thal+1 category
 # Normal = 1
 # Fixed Defect = 2
@@ -68,14 +83,24 @@ str(data4) # Removed dummy variable "thal.0" for near-zero variance. Result: 16 
 
 ```{r split}
 set.seed(seed)
-y <- data4$target # Extract only the target (heart disease) column as our y
+y <- data4$target 
 x <- data4[, !names(data4) %in% "target"] # Predictors only
+
 trainingRows <- createDataPartition(y, p = .80, list = FALSE) #list of indices from training
 train_y <- y[trainingRows]
 test_y <- y[-trainingRows]
-train_x <- data4[trainingRows, ] #subset predictors using only training indices
-test_x <- data4[-trainingRows, ] #subset predictors of test indices (-training)
-str(test_x)
-str(train_x)
+train_x <- data4[trainingRows, ] 
+test_x <- data4[-trainingRows, ]
+cat('Number of training sample:', nrow(train_x), 'and test samples: ',nrow(test_x), 'number of predictors:', ncol(train_x))
+```
+
+```{r cross validation and hypertune binary classify}
+ctrl <- trainControl(method = "repeatedcv", repeats = 5,
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE,
+                     savePredictions = TRUE)
+
+glmnGrid <- expand.grid(alpha = c(0,  .1,  .2, .4, .6, .8, 1),
+                        lambda = seq(.01, .2, length = 10))
 ```
 
