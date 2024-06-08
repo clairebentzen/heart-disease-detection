@@ -25,7 +25,6 @@ suppressPackageStartupMessages(library(ggplot2))
 library(corrplot)
 ```
 
-
 ```{r preprocess}
 seed <- 123
 #Ingest
@@ -67,6 +66,7 @@ ggplot(gather(data3), aes(value)) +
   geom_histogram(bins = 20) +
   facet_wrap(~key, scales = "free")
 ```
+
 ```{r EDA2}
 # continuous predictors
 cont_pred <- c('age', 'chol', 'oldpeak', 'thalach', 'trestbps')
@@ -78,6 +78,7 @@ ggplot(gather(cont_data), aes(value)) +
   facet_wrap(~key, scales = "free") +
   labs(title = "Boxplots for Continuous Predictors")
 ```
+
 ```{r outliers}
 # outlier handling
 for (pred in cont_pred) {
@@ -104,6 +105,7 @@ ggplot(data3, aes(x = sex, fill = target)) +
        fill = "Target") +
   theme_minimal()
 ```
+
 ```{r EDA4}
 data3$target <- factor(data3$target)
 
@@ -134,6 +136,7 @@ ggplot(data3, aes(x = thal.3, fill = target)) +
        fill = "Heart Disease") +
   theme_minimal()
 ```
+
 ```{r EDA5}
 # histogram of age segmented by heart disease detection
 ggplot(data3, aes(x = age, fill = target)) +
@@ -174,6 +177,7 @@ corrplot(correlations)
 confounding_model <- glm(target ~ age + sex + thal.2 + thal.3, data = data5, family = "binomial")
 summary(confounding_model)
 ```
+
 The low p-values for age, sex, and thal.2 indicate that these are possible confounding variables, however it does not confirm it. We have to now look at the correlation between the predictors and the target variable.
 
 ```{r conf_corr}
@@ -181,6 +185,7 @@ The low p-values for age, sex, and thal.2 indicate that these are possible confo
 data5$target <- as.numeric(data5$target)
 cor(data5[c("target", "age", "sex", "thal.2")])
 ```
+
 Age and sex have a very low correlation with the target variable, so we can keep them. The correlation thal.2 has with the target variable is moderate, but not high enough to indicate that there might be significant changes to the outcome of the model if we keep it.
 
 ```{r split}
@@ -202,7 +207,53 @@ ctrl <- trainControl(method = "repeatedcv", repeats = 5,
                      classProbs = TRUE,
                      savePredictions = TRUE)
 
-glmnGrid <- expand.grid(alpha = c(0,  .1,  .2, .4, .6, .8, 1),
+tunegrid <- expand.grid(alpha = c(0,  .1,  .2, .4, .6, .8, 1),
                         lambda = seq(.01, .2, length = 10))
+
 ```
 
+```{r model}
+# Logistic Regression
+set.seed(476)
+LR_model <-suppressWarnings(
+  train(x = train_x, y = train_y,
+           method = "glm",
+           tuneGrid = tunegrid,
+           preProc = c("center", "scale"),
+           metric = "ROC",
+           trControl = ctrl))
+
+#linear discriminant
+set.seed(476)
+LDA_model <-suppressWarnings(
+  train(x = train_x, y = train_y,
+            method = "lda",        
+            preProc = c("center", "scale"),
+            metric = "ROC",        
+            trControl = ctrl))
+
+#penalized logistic regression 
+set.seed(476)
+PLR_model <-  suppressWarnings(
+  train(x = train_x, y = train_y,
+           method = "glmnet",
+           tuneGrid = tunegrid,
+           preProc = c("center", "scale"),
+           metric = "ROC",
+           trControl = ctrl))
+
+#nearest shrunken centroids
+set.seed(476)
+NSC_model <-suppressWarnings(
+  train(x = train_x, y = train_y,
+          method = "pam",
+          preProc = c("center", "scale"),
+          tuneGrid = tunegrid, #data.frame(threshold = seq(0, 25, length = 30)),
+          metric = "ROC",
+          trControl = ctrl))
+
+```
+
+```{r model-performance}
+
+```
