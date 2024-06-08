@@ -21,6 +21,8 @@ library(gt)
 library(dplyr)
 library(tibble)
 suppressPackageStartupMessages(library(pROC))
+suppressPackageStartupMessages(library(ggplot2))
+library(corrplot)
 ```
 
 
@@ -61,11 +63,86 @@ cat('NewData dimension: ',nrow(data3),'remaining rows. This is still sufficient 
 
 ```{r EDA}
 #Check column histograms for unusual distributions
-suppressPackageStartupMessages(library(ggplot2))
-suppressPackageStartupMessages(library(tidyr))
 ggplot(gather(data3), aes(value)) +
   geom_histogram(bins = 20) +
   facet_wrap(~key, scales = "free")
+```
+```{r EDA2}
+# continuous predictors
+cont_pred <- c('age', 'chol', 'oldpeak', 'thalach', 'trestbps')
+cont_data <- data3[, cont_pred]
+
+# boxplots
+ggplot(gather(cont_data), aes(value)) +
+  geom_boxplot() +
+  facet_wrap(~key, scales = "free") +
+  labs(title = "Boxplots for Continuous Predictors")
+```
+```{r outliers}
+# outlier handling
+for (pred in cont_pred) {
+  # identify outliers
+  z_score <- scale(data3[[pred]])
+  outlier <- which(abs(z_score) > 3)
+  
+  # remove outlier rows
+  rem_outliers <- data3[-outlier, ]
+}
+
+data3 <- rem_outliers
+```
+
+```{r EDA3}
+data3$target <- factor(data3$target)
+
+# stacked bar plot for heart disease detection in males vs females
+ggplot(data3, aes(x = sex, fill = target)) +
+  geom_bar() +
+  labs(title = "Bar Plot of Sex by Heart Disease Detection",
+       x = "Sex",
+       y = "Count",
+       fill = "Target") +
+  theme_minimal()
+```
+```{r EDA4}
+data3$target <- factor(data3$target)
+
+# stacked bar plot for heart disease detection in thal.1
+ggplot(data3, aes(x = thal.1, fill = target)) +
+  geom_bar() +
+  labs(title = "Bar Plot of Thal = Normal by Heart Disease Detection",
+       x = "Thal = Normal",
+       y = "Count",
+       fill = "Heart Disease") +
+  theme_minimal()
+
+# stacked bar plot for heart disease detection in thal.2
+ggplot(data3, aes(x = thal.2, fill = target)) +
+  geom_bar() +
+  labs(title = "Bar Plot of Thal = Fixed Defect by Heart Disease Detection",
+       x = "Thal = Fixed Defect",
+       y = "Count",
+       fill = "Heart Disease") +
+  theme_minimal()
+
+# stacked bar plot for heart disease detection in thal.3
+ggplot(data3, aes(x = thal.3, fill = target)) +
+  geom_bar() +
+  labs(title = "Bar Plot of Thal = Reversable Defect by Heart Disease Detection",
+       x = "Thal = Reversable Defect",
+       y = "Count",
+       fill = "Heart Disease") +
+  theme_minimal()
+```
+```{r EDA5}
+# histogram of age segmented by heart disease detection
+ggplot(data3, aes(x = age, fill = target)) +
+  geom_histogram(binwidth = .1, position = "stack", alpha = 0.5) +
+  labs(title = "Histogram Segmented by Heart Disease Detection",
+       x = "Age",
+       y = "Frequency",
+       fill = "Heart Disease") +
+  theme_minimal()
 ```
 
 ```{r preprocess}
@@ -81,10 +158,35 @@ cat('NewData dimension: ',nrow(data4),'rows', ncol(data4), 'columns\n')
 # Reversable Defect = 3
 ```
 
+```{r correlation}
+# remove highly correlated predictors
+correlations <- cor(data4[, !names(data4) %in% "target"], method = "spearman")
+highCorr <- findCorrelation(correlations, cutoff = .75)
+data5 <- data4[, -highCorr]
+
+# correlation plot among predictor variables
+correlations <- cor(data5[, !names(data5) %in% "target"])
+corrplot(correlations)
+```
+
+```{r confounders}
+# logistic regression model with possible confounding predictors
+confounding_model <- glm(target ~ age + sex + thal.2 + thal.3, data = data5, family = "binomial")
+summary(confounding_model)
+```
+The low p-values for age, sex, and thal.2 indicate that these are possible confounding variables, however it does not confirm it. We have to now look at the correlation between the predictors and the target variable.
+
+```{r conf_corr}
+# correlation between possible confounders and target
+data5$target <- as.numeric(data5$target)
+cor(data5[c("target", "age", "sex", "thal.2")])
+```
+Age and sex have a very low correlation with the target variable, so we can keep them. The correlation thal.2 has with the target variable is moderate, but not high enough to indicate that there might be significant changes to the outcome of the model if we keep it.
+
 ```{r split}
 set.seed(seed)
-y <- data4$target 
-x <- data4[, !names(data4) %in% "target"] # Predictors only
+y <- data5$target 
+x <- data5[, !names(data5) %in% "target"] # Predictors only
 
 trainingRows <- createDataPartition(y, p = .80, list = FALSE) #list of indices from training
 train_y <- y[trainingRows]
