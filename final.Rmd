@@ -94,20 +94,25 @@ data3 <- rem_outliers
 ```
 
 ```{r EDA3}
-data3$target <- factor(data3$target)
-
+data3$target <- as.factor(data3$target)
+data3$sex <- as.factor(data3$sex)
 # stacked bar plot for heart disease detection in males vs females
+
 ggplot(data3, aes(x = sex, fill = target)) +
   geom_bar() +
   labs(title = "Bar Plot of Sex by Heart Disease Detection",
        x = "Sex",
        y = "Count",
        fill = "Target") +
+  scale_x_discrete(labels = c("0" = "Female", "1" = "Male")) +
   theme_minimal()
 ```
 
 ```{r EDA4}
-data3$target <- factor(data3$target)
+data3$target <- as.factor(data3$target)
+data3$thal.1 <- as.factor(data3$thal.1)
+data3$thal.2 <- as.factor(data3$thal.2)
+data3$thal.3 <- as.factor(data3$thal.3)
 
 # stacked bar plot for heart disease detection in thal.1
 ggplot(data3, aes(x = thal.1, fill = target)) +
@@ -116,6 +121,7 @@ ggplot(data3, aes(x = thal.1, fill = target)) +
        x = "Thal = Normal",
        y = "Count",
        fill = "Heart Disease") +
+  scale_x_discrete(labels = c("0" = "Other", "1" = "Normal")) +
   theme_minimal()
 
 # stacked bar plot for heart disease detection in thal.2
@@ -125,15 +131,17 @@ ggplot(data3, aes(x = thal.2, fill = target)) +
        x = "Thal = Fixed Defect",
        y = "Count",
        fill = "Heart Disease") +
+  scale_x_discrete(labels = c("0" = "Other", "1" = "Fixed Defect")) +
   theme_minimal()
 
 # stacked bar plot for heart disease detection in thal.3
 ggplot(data3, aes(x = thal.3, fill = target)) +
   geom_bar() +
-  labs(title = "Bar Plot of Thal = Reversable Defect by Heart Disease Detection",
+  labs(title = "Bar Plot of Thal = Reversible Defect by Heart Disease Detection",
        x = "Thal = Reversable Defect",
        y = "Count",
        fill = "Heart Disease") +
+  scale_x_discrete(labels = c("0" = "Other", "1" = "Reversible Defect")) +
   theme_minimal()
 ```
 
