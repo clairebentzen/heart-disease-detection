@@ -229,8 +229,17 @@ cat('Number of training sample:', nrow(train_x), 'and test samples: ',nrow(test_
 ```
 
 ```{r cross validation and hypertune binary classify}
+
+# Evaluation Metric
+sens_spec_harm <- function(data, lev = NULL, model = NULL) {
+  sens <- sensitivity(data$pred, data$obs, positive = levels(data$obs)[1])
+  spec <- specificity(data$pred, data$obs, positive = levels(data$obs)[1])
+  harmonic <- (2 * sens * spec) / (sens + spec)
+  c(harmonic = harmonic, sensitivity = sens, specificity = sens)
+}
+
 ctrl <- trainControl(method = "repeatedcv", repeats = 5,
-                     summaryFunction = twoClassSummary,
+                     summaryFunction = sens_spec_harm,
                      classProbs = TRUE,
                      savePredictions = TRUE)
 
@@ -248,7 +257,7 @@ LR_model <-suppressWarnings(
            method = "glm",
            #tuneGrid = tunegrid,
            preProc = c("center", "scale"),
-           metric = "ROC",
+           metric = "sens_spec_harm",
            trControl = ctrl))
 #linear discriminant
 set.seed(476)
@@ -256,7 +265,7 @@ LDA_model <-suppressWarnings(
   train(x = train_x, y = train_y,
             method = "lda",
             preProc = c("center", "scale"),
-            metric = "ROC",
+            metric = "sens_spec_harm",
             trControl = ctrl))
 #penalized logistic regression
 set.seed(476)
@@ -265,7 +274,7 @@ PLR_model <-  suppressWarnings(
            method = "glmnet",
            tuneGrid = tunegrid,
            preProc = c("center", "scale"),
-           metric = "ROC",
+           metric = "sens_spec_harm",
            trControl = ctrl))
 #nearest shrunken centroids
 set.seed(476)
@@ -276,23 +285,23 @@ NSC_model <-suppressWarnings(
           method = "pam",
           preProc = c("center", "scale"),
           tuneGrid = tunegrid,
-          metric = "ROC",
+          metric = "sens_spec_harm",
           trControl = ctrl))
 ```
 
 ```{r model-performance}
-LR_roc <- LR_model$results$ROC
-LDA_roc <- LDA_model$results$ROC
-PLR_roc <- mean(PLR_model$results$ROC)
-NSC_roc <- mean(NSC_model$results$ROC)
+LR_sens_spec <- LR_model$results$harmonic
+LDA_sens_spec <- LDA_model$results$harmonic
+PLR_sens_spec <- mean(PLR_model$results$harmonic)
+NSC_sens_spec <- mean(NSC_model$results$harmonic)
 
-roc_values <- data.frame(
+sens_spec_values <- data.frame(
   Model = c("LogisticRegression", "LinearDiscriminant",
   "PenalizedLogisticRegression", "NearestShrunken"),
-  ROC = c(LR_roc, LDA_roc, 
-          PLR_roc, NSC_roc)
+  F_Score_Sens_Spec = c(LR_sens_spec, LDA_sens_spec, 
+          PLR_sens_spec, NSC_sens_spec)
 )
-roc_values
+sens_spec_values %>% arrange(desc(F_Score_Sens_Spec))
 ```
 
 ```{r predict}
