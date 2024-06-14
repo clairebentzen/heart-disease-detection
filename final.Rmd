@@ -71,7 +71,7 @@ ggplot(gather(data3), aes(value)) +
 # continuous predictors
 cont_pred <- c('age', 'chol', 'oldpeak', 'thalach', 'trestbps')
 cont_data <- data3[, cont_pred]
-
+ex_cont_data <- data3[,!names(data3) %in% cont_pred]
 # boxplots
 ggplot(gather(cont_data), aes(value)) +
   geom_boxplot() +
@@ -171,13 +171,25 @@ cat('NewData dimension: ',nrow(data4),'rows', ncol(data4), 'columns\n')
 
 ```{r correlation}
 # remove highly correlated predictors
-correlations <- cor(data4[, !names(data4) %in% "target"], method = "spearman")
-highCorr <- findCorrelation(correlations, cutoff = .75)
-data5 <- data4[, -highCorr]
+p_correlations <- cor(cont_data, method = "pearson")
+p_highCorr <- findCorrelation(p_correlations, cutoff = .75)
+p_highCorr # No continuous variables correlated > .75
 
+ex_cont_data$sex <- as.integer(ex_cont_data$sex)
+ex_cont_data$thal.1 <- as.integer(ex_cont_data$thal.1)
+ex_cont_data$thal.2 <- as.integer(ex_cont_data$thal.2)
+ex_cont_data$thal.3 <- as.integer(ex_cont_data$thal.3)
+
+s_correlations <- round(cor(ex_cont_data[, !names(ex_cont_data) %in% "target"], 
+                      method = "spearman"), 3)
+s_highCorr <- findCorrelation(s_correlations, cutoff = .75)
+data5 <- data4[, -s_highCorr]
+cont_data
 # correlation plot among predictor variables
-correlations <- cor(data5[, !names(data5) %in% "target"])
-corrplot(correlations)
+p_correlations <- cor(cont_data)
+c_correlations <- cor(ex_cont_data)
+p_corr_plot <- corrplot(p_correlations)
+c_corr_plot <- corrplot(c_correlations)
 ```
 
 ```{r confounders}
