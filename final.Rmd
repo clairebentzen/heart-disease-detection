@@ -222,8 +222,9 @@ x <- data5[, !names(data5) %in% "target"] # Predictors only
 trainingRows <- createDataPartition(y, p = .80, list = FALSE) #list of indices from training
 train_y <- y[trainingRows]
 test_y <- y[-trainingRows]
-train_x <- data4[trainingRows, ] 
-test_x <- data4[-trainingRows, ]
+train_x <- x[trainingRows, ] 
+test_x <- x[-trainingRows, ]
+train_x <- data.frame(lapply(train_x, function(x) if(is.factor(x)) as.numeric(as.character(x)) else x))
 cat('Number of training sample:', nrow(train_x), 'and test samples: ',nrow(test_x), 'number of predictors:', ncol(train_x))
 ```
 
@@ -240,25 +241,24 @@ tunegrid <- expand.grid(alpha = c(0,  .1,  .2, .4, .6, .8, 1),
 
 ```{r model}
 # Logistic Regression
+levels(train_y) <- make.names(levels(train_y))
 set.seed(476)
 LR_model <-suppressWarnings(
   train(x = train_x, y = train_y,
            method = "glm",
-           tuneGrid = tunegrid,
+           #tuneGrid = tunegrid,
            preProc = c("center", "scale"),
            metric = "ROC",
            trControl = ctrl))
-
 #linear discriminant
 set.seed(476)
 LDA_model <-suppressWarnings(
   train(x = train_x, y = train_y,
-            method = "lda",        
+            method = "lda",
             preProc = c("center", "scale"),
-            metric = "ROC",        
+            metric = "ROC",
             trControl = ctrl))
-
-#penalized logistic regression 
+#penalized logistic regression
 set.seed(476)
 PLR_model <-  suppressWarnings(
   train(x = train_x, y = train_y,
@@ -267,19 +267,35 @@ PLR_model <-  suppressWarnings(
            preProc = c("center", "scale"),
            metric = "ROC",
            trControl = ctrl))
-
 #nearest shrunken centroids
 set.seed(476)
+train_x <- data.frame(lapply(train_x, function(x) if (is.factor(x)) as.numeric(as.character(x)) else x))
+tunegrid <- expand.grid(threshold = seq(0, 25, length = 30))
 NSC_model <-suppressWarnings(
   train(x = train_x, y = train_y,
           method = "pam",
           preProc = c("center", "scale"),
-          tuneGrid = tunegrid, #data.frame(threshold = seq(0, 25, length = 30)),
+          tuneGrid = tunegrid,
           metric = "ROC",
           trControl = ctrl))
-
 ```
 
 ```{r model-performance}
+LR_roc <- LR_model$results$ROC
+LDA_roc <- LDA_model$results$ROC
+PLR_roc <- mean(PLR_model$results$ROC)
+NSC_roc <- mean(NSC_model$results$ROC)
+
+roc_values <- data.frame(
+  Model = c("LogisticRegression", "LinearDiscriminant",
+  "PenalizedLogisticRegression", "NearestShrunken"),
+  ROC = c(LR_roc, LDA_roc, 
+          PLR_roc, NSC_roc)
+)
+roc_values
+```
+
+```{r predict}
+
 
 ```
