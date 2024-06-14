@@ -229,7 +229,6 @@ cat('Number of training sample:', nrow(train_x), 'and test samples: ',nrow(test_
 ```
 
 ```{r cross validation and hypertune binary classify}
-
 # Evaluation Metric
 sens_spec_harm <- function(data, lev = NULL, model = NULL) {
   sens <- sensitivity(data$pred, data$obs, positive = levels(data$obs)[1])
@@ -238,6 +237,17 @@ sens_spec_harm <- function(data, lev = NULL, model = NULL) {
   c(harmonic = harmonic, sensitivity = sens, specificity = sens)
 }
 
+#sens_spec_harm <- function(data, lev = NULL, model = NULL) {
+#  data$pred <- as.numeric(as.character(data$pred))
+#  data$obs <- factor(data$obs)
+#  sens <- sensitivity(data$pred, data$obs)
+#  spec <- specificity(data$pred, data$obs)
+#  harmonic <- (2 * sens * spec) / (sens + spec)
+# roc_curve <- roc(data$obs, data$pred)
+#  auc_value <- auc(roc_curve)
+#  c(harmonic = harmonic, sensitivity = sens, specificity = sens, ROC_AUC = #auc_value)
+#}
+
 ctrl <- trainControl(method = "repeatedcv", repeats = 5,
                      summaryFunction = sens_spec_harm,
                      classProbs = TRUE,
@@ -245,6 +255,7 @@ ctrl <- trainControl(method = "repeatedcv", repeats = 5,
 
 tunegrid <- expand.grid(alpha = c(0,  .1,  .2, .4, .6, .8, 1),
                         lambda = seq(.01, .2, length = 10))
+
 
 ```
 
@@ -278,7 +289,6 @@ PLR_model <-  suppressWarnings(
            trControl = ctrl))
 #nearest shrunken centroids
 set.seed(476)
-train_x <- data.frame(lapply(train_x, function(x) if (is.factor(x)) as.numeric(as.character(x)) else x))
 tunegrid <- expand.grid(threshold = seq(0, 25, length = 30))
 NSC_model <-suppressWarnings(
   train(x = train_x, y = train_y,
@@ -290,6 +300,7 @@ NSC_model <-suppressWarnings(
 ```
 
 ```{r model-performance}
+#Harmonic
 LR_sens_spec <- LR_model$results$harmonic
 LDA_sens_spec <- LDA_model$results$harmonic
 PLR_sens_spec <- mean(PLR_model$results$harmonic)
@@ -302,6 +313,32 @@ sens_spec_values <- data.frame(
           PLR_sens_spec, NSC_sens_spec)
 )
 sens_spec_values %>% arrange(desc(F_Score_Sens_Spec))
+
+#confusion Matrix
+LR_CM <- confusionMatrix(LR_model, norm="none")
+LDA_CM <- confusionMatrix(LDA_model, norm="none")
+PLR_CM <- confusionMatrix(PLR_model, norm="none")
+NSC_CM <- confusionMatrix(NSC_model, norm="none")
+
+#ROC-AUC  --> NEED TO CHANGE METRIC FUNCTION???????
+LR_auc <- LR_model$results$ROC_AUC
+LDA_auc <- LDA_model$results$ROC_AUC
+PLR_auc <- mean(PLR_model$results$ROC_AUC)
+NSC_auc <- mean(NSC_model$results$ROC_AUC)
+
+
+Model_performance <-  data.frame(
+  Model = c("LogisticRegression", "LinearDiscriminant",
+  "PenalizedLogisticRegression", "NearestShrunken"),
+  Accuracy = c(
+      sum(diag(LR_CM$table))/ sum(LR_CM$table),
+      sum(diag(LDA_CM$table))/ sum(LDA_CM$table),
+      sum(diag(PLR_CM$table))/ sum(PLR_CM$table),
+      sum(diag(NSC_CM$table))/ sum(NSC_CM$table)
+    ),
+  AUC = c(LR_auc, LDA_auc, PLR_auc, NSC_auc)
+)
+Model_performance
 ```
 
 ```{r predict}
@@ -323,9 +360,61 @@ test_results$NSC <- predict(NSC_model, test_x)
 
 ```{r comparison}
 # model comparison using confusion matrix
-confusionMatrix(test_results$LR, test_results$obs, positive = "X1")
-confusionMatrix(test_results$LDA, test_results$obs, positive = "X1")
-confusionMatrix(test_results$PLR, test_results$obs, positive = "X1")
-confusionMatrix(test_results$NSC, test_results$obs, positive = "X1")
+LR_CM_pred <- confusionMatrix(test_results$LR, test_results$obs, positive = "X1")
+LDA_CM_pred <- confusionMatrix(test_results$LDA, test_results$obs, positive = "X1")
+PLR_CM_pred <- confusionMatrix(test_results$PLR, test_results$obs, positive = "X1")
+NSC_CM_pred <- confusionMatrix(test_results$NSC, test_results$obs, positive = "X1")
 
+#ROC
+LR_roc_pred <- roc(test_results$obs, as.numeric(test_results$LR))
+LDA_roc_pred <- roc(test_results$obs, as.numeric(test_results$LDA))
+PLR_roc_pred <- roc(test_results$obs, as.numeric(test_results$PLR))
+NSC_roc_pred <- roc(test_results$obs, as.numeric(test_results$NSC))
+
+Test_performance <-  data.frame(
+  Model = c("LogisticRegression", "LinearDiscriminant",
+  "PenalizedLogisticRegression", "NearestShrunken"),
+  Accuracy = c(
+    LR_CM_pred$overall['Accuracy'],
+    LDA_CM_pred$overall['Accuracy'],
+    PLR_CM_pred$overall['Accuracy'], 
+    NSC_CM_pred$overall['Accuracy'] 
+    ),
+  AUC = c(
+    LR_roc_pred$auc, LDA_roc_pred$auc,
+    PLR_roc_pred$auc,NSC_roc_pred$auc
+  )
+)
+Test_performance
+
+
+```
+
+```{r important_vars}
+LR_ImpVar <- varImp(LR_model, scale = FALSE)
+top5_LR_ImpVar <- LR_ImpVar$importance %>% 
+  arrange(desc(Overall)) %>% slice(1:5)
+
+LDA_ImpVar  <-  varImp(LDA_model)
+importance_df <- LDA_ImpVar$importance
+top5_LDA_ImpVar <- importance_df[order(-importance_df$X1), ]
+top5_LDA_ImpVar <- head(top5_LDA_ImpVar["X1"],5)
+
+PLR_ImpVar <- varImp(PLR_model)
+suppressPackageStartupMessages({top5_PLR_ImpVar <- 
+  PLR_ImpVar$importance %>% arrange(desc(Overall)) %>% slice(1:5)})
+
+NSC_ImpVar <- varImp(NSC_model)
+importance_df <- NSC_ImpVar$importance
+top5_NSC_ImpVar <- importance_df[order(-importance_df$X1), ]
+top5_NSC_ImpVar <- head(top5_NSC_ImpVar["X1"],5)
+
+
+top5_ImpVar <- data.frame(
+  LR_ImpVar = rownames(top5_LR_ImpVar),
+  LDA_ImpVar =  rownames(top5_LDA_ImpVar),
+  PLR_ImpVar =  rownames(top5_PLR_ImpVar),
+  NSC_ImpVar = rownames(top5_NSC_ImpVar)
+)
+top5_ImpVar
 ```
