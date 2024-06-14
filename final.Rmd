@@ -202,8 +202,14 @@ The low p-values for age, sex, and thal.2 indicate that these are possible confo
 
 ```{r conf_corr}
 # correlation between possible confounders and target
-data5$target <- as.numeric(data5$target)
-cor(data5[c("target", "age", "sex", "thal.2")])
+data_conf_check <- data5
+
+data_conf_check$target <- as.integer(data_conf_check$target)
+data_conf_check$age <- as.integer(data_conf_check$age)
+data_conf_check$sex <- as.integer(data_conf_check$sex)
+data_conf_check$thal.2 <- as.integer(data_conf_check$thal.2)
+data_conf_check
+cor(data_conf_check[c("target", "age", "sex", "thal.2")])
 ```
 
 Age and sex have a very low correlation with the target variable, so we can keep them. The correlation thal.2 has with the target variable is moderate, but not high enough to indicate that there might be significant changes to the outcome of the model if we keep it.
