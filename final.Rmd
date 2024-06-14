@@ -305,6 +305,27 @@ sens_spec_values %>% arrange(desc(F_Score_Sens_Spec))
 ```
 
 ```{r predict}
+# convert all predictors to numeric
+test_x <- data.frame(lapply(test_x, function(x) if (is.factor(x)) as.numeric(as.character(x)) else x))
 
+levels(test_y) <- make.names(levels(test_y))
+              
+# predict test data with each model        
+test_results <- data.frame(obs = test_y, 
+                           LR = predict(LR_model, test_x))
+
+test_results$LDA <- predict(LDA_model, test_x)
+
+test_results$PLR <- predict(PLR_model, test_x)
+
+test_results$NSC <- predict(NSC_model, test_x)
+```
+
+```{r comparison}
+# model comparison using confusion matrix
+confusionMatrix(test_results$LR, test_results$obs, positive = "X1")
+confusionMatrix(test_results$LDA, test_results$obs, positive = "X1")
+confusionMatrix(test_results$PLR, test_results$obs, positive = "X1")
+confusionMatrix(test_results$NSC, test_results$obs, positive = "X1")
 
 ```
