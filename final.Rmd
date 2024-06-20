@@ -279,7 +279,17 @@ sens_spec_harm <- function(data, lev = NULL, model = NULL) {
   sens <- sensitivity(data$pred, data$obs, positive = levels(data$obs)[1])
   spec <- specificity(data$pred, data$obs, positive = levels(data$obs)[1])
   harmonic <- (2 * sens * spec) / (sens + spec)
-  c(harmonic = harmonic, sensitivity = sens, specificity = sens)
+  suppressMessages({
+  roc <- roc(response = data$obs, 
+             predictor = as.numeric(data$pred), 
+             levels = rev(levels(data$obs)))
+  })
+  auc <- auc(roc)
+  
+  c(harmonic = harmonic, 
+    sensitivity = sens, 
+    specificity = spec,
+    auc = as.numeric(auc))
 }
 
 #sens_spec_harm <- function(data, lev = NULL, model = NULL) {
@@ -303,41 +313,7 @@ tunegrid <- expand.grid(alpha = c(0,  .1,  .2, .4, .6, .8, 1),
 
 ```
 
-```{r model}
-indx <- createFolds(train_y, returnTrain = TRUE)
-ctrl <- trainControl(method = "cv", index = indx)
-nnetGrid <- expand.grid(decay = c(0, 0.01, .1), 
-                        size = c(3, 7, 11, 13))
-
-# Neural Network
-set.seed(123)
-nn_model <- suppressWarnings(train(x = train_x, y = train_y,
-    method = "nnet",
-    tuneGrid = nnetGrid,
-    trControl = ctrl,
-    preProc = c("center", "scale"),
-    linout = FALSE,
-    trace = FALSE))
-
-# Support Vector Machine 
-set.seed(123)
-svm_model <-  train(x = train_x, y = train_y,
-                  method = "svmRadial",
-                  preProc = c("center", "scale"),
-                  tuneLength = 14,
-                  trControl = ctrl)
-
-# k-Nearest Neighbors
-set.seed(123)
-knn_model <-  train(x = train_x, y = train_y,
-                 method = "knn",
-                 preProc = c("center", "scale"),
-                 tuneGrid = data.frame(k = 1:20),
-                 trControl = ctrl)
-
-```
-
-```{r model}
+```{r model echo=FALSE}
 levels(train_y) <- make.names(levels(train_y))
 # Logistic Regression
 LR_model <-suppressWarnings(
@@ -347,6 +323,7 @@ LR_model <-suppressWarnings(
            preProc = c("center", "scale"),
            metric = "sens_spec_harm",
            trControl = ctrl))
+
 #linear discriminant
 set.seed(476)
 LDA_model <-suppressWarnings(
@@ -376,6 +353,42 @@ NSC_model <-suppressWarnings(
           trControl = ctrl))
 ```
 
+```{r model echo=FALSE}
+#indx <- createFolds(train_y, returnTrain = TRUE)
+#ctrl <- trainControl(method = "cv", index = indx)
+nnetGrid <- expand.grid(decay = c(0, 0.01, .1), 
+                        size = c(3, 7, 11, 13))
+
+# Neural Network
+set.seed(123)
+nn_model <- suppressWarnings(train(x = train_x, y = train_y,
+    method = "nnet",
+    tuneGrid = nnetGrid,
+    trControl = ctrl,
+    preProc = c("center", "scale"),
+    metric = "sens_spec_harm",
+    linout = FALSE,
+    trace = FALSE))
+
+# Support Vector Machine 
+set.seed(123)
+svm_model <-  train(x = train_x, y = train_y,
+                  method = "svmRadial",
+                  preProc = c("center", "scale"),
+                  metric = "sens_spec_harm",
+                  tuneLength = 14,
+                  trControl = ctrl)
+svm_model
+# k-Nearest Neighbors
+set.seed(123)
+knn_model <-  train(x = train_x, y = train_y,
+                 method = "knn",
+                 preProc = c("center", "scale"),
+                 metric = "sens_spec_harm",
+                 tuneGrid = data.frame(k = 1:20),
+                 trControl = ctrl)
+```
+
 ```{r model-performance}
 #Harmonic
 LR_sens_spec <- LR_model$results$harmonic
@@ -383,39 +396,75 @@ LDA_sens_spec <- LDA_model$results$harmonic
 PLR_sens_spec <- mean(PLR_model$results$harmonic)
 NSC_sens_spec <- mean(NSC_model$results$harmonic)
 
+# Using values of models optimized for "harmonic"
+NN_sens_spec <- max(nn_model$results$harmonic) # use size = 13 and decay = .1
+SVM_sens_spec <- max(svm_model$results$harmonic) # use S=.05041146 andC=.25
+KNN_sens_spec <- max(knn_model$results$harmonic) # use k=19
+
 sens_spec_values <- data.frame(
-  Model = c("LogisticRegression", "LinearDiscriminant",
-  "PenalizedLogisticRegression", "NearestShrunken"),
-  F_Score_Sens_Spec = c(LR_sens_spec, LDA_sens_spec, 
-          PLR_sens_spec, NSC_sens_spec)
+  Model = c("LogisticRegression", 
+            "LinearDiscriminant",
+            "PenalizedLogisticRegression",
+            "NearestShrunkenCentroid",
+            "Neural Net",
+            "Support Vector Machine",
+            "KNN"),
+  F_Score_Sens_Spec = c(LR_sens_spec, 
+                        LDA_sens_spec, 
+                        PLR_sens_spec,
+                        NSC_sens_spec,
+                        NN_sens_spec,
+                        SVM_sens_spec,
+                        KNN_sens_spec)
 )
-sens_spec_values |> arrange(desc(F_Score_Sens_Spec))
 
 #confusion Matrix
 LR_CM <- confusionMatrix(LR_model, norm="none")
 LDA_CM <- confusionMatrix(LDA_model, norm="none")
 PLR_CM <- confusionMatrix(PLR_model, norm="none")
 NSC_CM <- confusionMatrix(NSC_model, norm="none")
+NN_CM <- confusionMatrix(nn_model, norm="none")
+SVM_CM <- confusionMatrix(svm_model, norm="none")
+KNN_CM <- confusionMatrix(knn_model, norm="none")
 
-#ROC-AUC  --> NEED TO CHANGE METRIC FUNCTION???????
-LR_auc <- LR_model$results$ROC_AUC
-LDA_auc <- LDA_model$results$ROC_AUC
-PLR_auc <- mean(PLR_model$results$ROC_AUC)
-NSC_auc <- mean(NSC_model$results$ROC_AUC)
+#ROC-AUC  --> added auc field
+LR_auc <- LR_model$results$auc
+LDA_auc <- LDA_model$results$auc
+PLR_auc <- mean(PLR_model$results$auc)
+NSC_auc <- mean(NSC_model$results$auc)
+NN_auc <- mean(nn_model$results$auc)
+SVM_auc <- mean(svm_model$results$auc)
+KNN_auc <- mean(knn_model$results$auc)
 
 
 Model_performance <-  data.frame(
-  Model = c("LogisticRegression", "LinearDiscriminant",
-  "PenalizedLogisticRegression", "NearestShrunken"),
+  Model = c("LogisticRegression", 
+            "LinearDiscriminant",
+            "PenalizedLogisticRegression",
+            "NearestShrunkenCentroid",
+            "Neural Net",
+            "Support Vector Machine",
+            "KNN"),
   Accuracy = c(
       sum(diag(LR_CM$table))/ sum(LR_CM$table),
       sum(diag(LDA_CM$table))/ sum(LDA_CM$table),
       sum(diag(PLR_CM$table))/ sum(PLR_CM$table),
-      sum(diag(NSC_CM$table))/ sum(NSC_CM$table)
+      sum(diag(NSC_CM$table))/ sum(NSC_CM$table),
+      sum(diag(NN_CM$table))/ sum(NN_CM$table),
+      sum(diag(SVM_CM$table))/ sum(SVM_CM$table),
+      sum(diag(KNN_CM$table))/ sum(KNN_CM$table)
     ),
-  AUC = c(LR_auc, LDA_auc, PLR_auc, NSC_auc)
+  AUC = c(LR_auc, LDA_auc, PLR_auc, NSC_auc, NN_auc, SVM_auc, KNN_auc),
+  Harmonic = c(LR_sens_spec, 
+               LDA_sens_spec, 
+               PLR_sens_spec, 
+               NSC_sens_spec,
+               NN_sens_spec,
+               SVM_sens_spec,
+               KNN_sens_spec)
 )
-Model_performance
+#Sort by optimal detection of all disease cases + minimizing false negatives
+Model_performance |> arrange(desc(Harmonic))
 ```
 
 ```{r predict}
@@ -442,6 +491,21 @@ LDA_CM_pred <- confusionMatrix(test_results$LDA, test_results$obs, positive = "X
 PLR_CM_pred <- confusionMatrix(test_results$PLR, test_results$obs, positive = "X1")
 NSC_CM_pred <- confusionMatrix(test_results$NSC, test_results$obs, positive = "X1")
 
+#sens and spec are temporary variables to be overwritten with each model
+#for the purpose of saving result in their own permanent variable
+sens <- LR_CM_pred$byClass['Sensitivity']
+spec <- LR_CM_pred$byClass['Specificity']
+LR_harm_pred <- (2 * sens * spec) / (sens + spec)
+sens <- LDA_CM_pred$byClass['Sensitivity']
+spec <- LDA_CM_pred$byClass['Specificity']
+LDA_harm_pred <- (2 * sens * spec) / (sens + spec)
+sens <- PLR_CM_pred$byClass['Sensitivity']
+spec <- PLR_CM_pred$byClass['Specificity']
+PLR_harm_pred <- (2 * sens * spec) / (sens + spec)
+sens <- NSC_CM_pred$byClass['Sensitivity']
+spec <- NSC_CM_pred$byClass['Specificity']
+NSC_harm_pred <- (2 * sens * spec) / (sens + spec)
+
 #ROC
 LR_roc_pred <- roc(test_results$obs, as.numeric(test_results$LR))
 LDA_roc_pred <- roc(test_results$obs, as.numeric(test_results$LDA))
@@ -458,11 +522,14 @@ Test_performance <-  data.frame(
     NSC_CM_pred$overall['Accuracy'] 
     ),
   AUC = c(
-    LR_roc_pred$auc, LDA_roc_pred$auc,
-    PLR_roc_pred$auc,NSC_roc_pred$auc
-  )
+    LR_roc_pred$auc,
+    LDA_roc_pred$auc,
+    PLR_roc_pred$auc,
+    NSC_roc_pred$auc
+  ),
+  Harmonic = c(LR_harm_pred, LDA_harm_pred, PLR_harm_pred, NSC_harm_pred)
 )
-Test_performance
+Test_performance |> arrange(desc(Harmonic))
 
 
 ```
