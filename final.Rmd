@@ -292,17 +292,6 @@ sens_spec_harm <- function(data, lev = NULL, model = NULL) {
     auc = as.numeric(auc))
 }
 
-#sens_spec_harm <- function(data, lev = NULL, model = NULL) {
-#  data$pred <- as.numeric(as.character(data$pred))
-#  data$obs <- factor(data$obs)
-#  sens <- sensitivity(data$pred, data$obs)
-#  spec <- specificity(data$pred, data$obs)
-#  harmonic <- (2 * sens * spec) / (sens + spec)
-# roc_curve <- roc(data$obs, data$pred)
-#  auc_value <- auc(roc_curve)
-#  c(harmonic = harmonic, sensitivity = sens, specificity = sens, ROC_AUC = #auc_value)
-#}
-
 ctrl <- trainControl(method = "repeatedcv", repeats = 5,
                      summaryFunction = sens_spec_harm,
                      classProbs = TRUE,
@@ -354,8 +343,7 @@ NSC_model <-suppressWarnings(
 ```
 
 ```{r model echo=FALSE}
-#indx <- createFolds(train_y, returnTrain = TRUE)
-#ctrl <- trainControl(method = "cv", index = indx)
+
 nnetGrid <- expand.grid(decay = c(0, 0.01, .1), 
                         size = c(3, 7, 11, 13))
 
@@ -378,7 +366,6 @@ svm_model <-  train(x = train_x, y = train_y,
                   metric = "sens_spec_harm",
                   tuneLength = 14,
                   trControl = ctrl)
-svm_model
 # k-Nearest Neighbors
 set.seed(123)
 knn_model <-  train(x = train_x, y = train_y,
@@ -482,6 +469,10 @@ test_results$LDA <- predict(LDA_model, test_x)
 test_results$PLR <- predict(PLR_model, test_x)
 
 test_results$NSC <- predict(NSC_model, test_x)
+
+test_results$nnet <- predict(nn_model, test_x)
+test_results$svm <- predict(svm_model, test_x)
+test_results$knn <- predict(knn_model, test_x)
 ```
 
 ```{r comparison}
@@ -490,6 +481,9 @@ LR_CM_pred <- confusionMatrix(test_results$LR, test_results$obs, positive = "X1"
 LDA_CM_pred <- confusionMatrix(test_results$LDA, test_results$obs, positive = "X1")
 PLR_CM_pred <- confusionMatrix(test_results$PLR, test_results$obs, positive = "X1")
 NSC_CM_pred <- confusionMatrix(test_results$NSC, test_results$obs, positive = "X1")
+nnet_CM_pred <- confusionMatrix(test_results$nnet, test_results$obs, positive = "X1")
+svm_CM_pred <- confusionMatrix(test_results$svm, test_results$obs, positive = "X1")
+knn_CM_pred <- confusionMatrix(test_results$knn, test_results$obs, positive = "X1")
 
 #sens and spec are temporary variables to be overwritten with each model
 #for the purpose of saving result in their own permanent variable
@@ -505,29 +499,49 @@ PLR_harm_pred <- (2 * sens * spec) / (sens + spec)
 sens <- NSC_CM_pred$byClass['Sensitivity']
 spec <- NSC_CM_pred$byClass['Specificity']
 NSC_harm_pred <- (2 * sens * spec) / (sens + spec)
+sens <- nnet_CM_pred$byClass['Sensitivity']
+spec <- nnet_CM_pred$byClass['Specificity']
+nnet_harm_pred <- (2 * sens * spec) / (sens + spec)
+sens <- svm_CM_pred$byClass['Sensitivity']
+spec <- svm_CM_pred$byClass['Specificity']
+svm_harm_pred <- (2 * sens * spec) / (sens + spec)
+sens <- knn_CM_pred$byClass['Sensitivity']
+spec <- knn_CM_pred$byClass['Specificity']
+knn_harm_pred <- (2 * sens * spec) / (sens + spec)
 
 #ROC
 LR_roc_pred <- roc(test_results$obs, as.numeric(test_results$LR))
 LDA_roc_pred <- roc(test_results$obs, as.numeric(test_results$LDA))
 PLR_roc_pred <- roc(test_results$obs, as.numeric(test_results$PLR))
 NSC_roc_pred <- roc(test_results$obs, as.numeric(test_results$NSC))
+nnet_roc_pred <- roc(test_results$obs, as.numeric(test_results$nnet))
+svm_roc_pred <- roc(test_results$obs, as.numeric(test_results$svm))
+knn_roc_pred <- roc(test_results$obs, as.numeric(test_results$knn))
 
 Test_performance <-  data.frame(
   Model = c("LogisticRegression", "LinearDiscriminant",
-  "PenalizedLogisticRegression", "NearestShrunken"),
+  "PenalizedLogisticRegression", "NearestShrunken",
+  "NeutralNetwork","SVM","kNN"),
   Accuracy = c(
     LR_CM_pred$overall['Accuracy'],
     LDA_CM_pred$overall['Accuracy'],
     PLR_CM_pred$overall['Accuracy'], 
-    NSC_CM_pred$overall['Accuracy'] 
+    NSC_CM_pred$overall['Accuracy'],
+    nnet_CM_pred$overall['Accuracy'], 
+    svm_CM_pred$overall['Accuracy'], 
+    knn_CM_pred$overall['Accuracy']
     ),
   AUC = c(
     LR_roc_pred$auc,
     LDA_roc_pred$auc,
     PLR_roc_pred$auc,
-    NSC_roc_pred$auc
+    NSC_roc_pred$auc,
+    nnet_roc_pred$auc,
+    svm_roc_pred$auc,
+    knn_roc_pred$auc
   ),
-  Harmonic = c(LR_harm_pred, LDA_harm_pred, PLR_harm_pred, NSC_harm_pred)
+  Harmonic = c(LR_harm_pred, LDA_harm_pred, PLR_harm_pred, NSC_harm_pred,
+               nnet_harm_pred, svm_harm_pred, knn_harm_pred)
 )
 Test_performance |> arrange(desc(Harmonic))
 
@@ -553,12 +567,40 @@ importance_df <- NSC_ImpVar$importance
 top5_NSC_ImpVar <- importance_df[order(-importance_df$X1), ]
 top5_NSC_ImpVar <- head(top5_NSC_ImpVar["X1"],5)
 
+nnet_ImpVar <- varImp(nn_model, scale = FALSE)
+top5_nnet_ImpVar <- nnet_ImpVar$importance |> 
+  arrange(desc(Overall)) |> slice(1:5)
+
+svm_ImpVar <- varImp(svm_model, scale = FALSE)
+svm_ImpVar_df <- as.data.frame(svm_ImpVar$importance)
+svm_ImpVar_df$Variable <- rownames(svm_ImpVar$importance) 
+svm_ImpVar_summary <- svm_ImpVar_df %>%
+     rowwise() %>%
+     mutate(Overall = mean(c_across(starts_with('X')), na.rm = TRUE)) %>%
+     ungroup()
+top5_svm_ImpVar <- svm_ImpVar_summary %>%
+     arrange(desc(Overall)) %>% slice(1:5) %>%
+     select(Variable, Overall)
+
+knn_ImpVar <- varImp(knn_model, scale = FALSE)
+knn_ImpVar_df <- as.data.frame(knn_ImpVar$importance)
+knn_ImpVar_df$Variable <- rownames(knn_ImpVar$importance) 
+knn_ImpVar_summary <- knn_ImpVar_df %>%
+     rowwise() %>%
+     mutate(Overall = mean(c_across(starts_with('X')), na.rm = TRUE)) %>%
+     ungroup()
+top5_knn_ImpVar <- knn_ImpVar_summary %>%
+     arrange(desc(Overall)) %>% slice(1:5) %>%
+     select(Variable, Overall)
 
 top5_ImpVar <- data.frame(
   LR_ImpVar = rownames(top5_LR_ImpVar),
   LDA_ImpVar =  rownames(top5_LDA_ImpVar),
   PLR_ImpVar =  rownames(top5_PLR_ImpVar),
-  NSC_ImpVar = rownames(top5_NSC_ImpVar)
+  NSC_ImpVar = rownames(top5_NSC_ImpVar),
+  nnet_ImpVar = rownames(top5_nnet_ImpVar),
+  svm_ImpVar = top5_svm_ImpVar$Variable,
+  knn_ImpVar = top5_knn_ImpVar$Variable
 )
 top5_ImpVar
 ```
