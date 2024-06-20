@@ -1,6 +1,6 @@
 ---
 title: "Team 4 - Heart Disease Detection"
-author: "Claire, Bentzen, John Vincent Deniega, Ravita Kartawinata"
+author: "Claire Bentzen, John Vincent Deniega, Ravita Kartawinata"
 date: "`r Sys.Date()`"
 format: 
     #html: 
@@ -44,6 +44,32 @@ cat('Count of duplicate rows: ', nrow(duplicate_row),'\n')
 data1 <- data[!duplicated(data),]
 cat('NewData dimension: ',nrow(data1),'remaining rows. This is still sufficient since ncol^2 is less than #nrows\n')
 
+# Clip outliers to 1.5 times greater than minimum Q1 or maximum Q3 quartile prior to center and scaling so as not to excessively affect mean and standard deviation
+cont_pred <- c('age', 'chol', 'oldpeak', 'thalach', 'trestbps')
+cont_data_toclip <- data1[, cont_pred]
+max(cont_data_toclip$chol) # test chol max = 564
+clip_outlier <- function(x){
+      q1 <- quantile(x, .25, na.rm = TRUE)
+      q3 <- quantile(x, .75, na.rm = TRUE)
+      IQR <- q3 - q1
+      lower <- q1 - 1.5 * IQR
+      upper <- q3 + 1.5 * IQR
+      x <- ifelse(x < lower, lower, x)
+      x <- ifelse(x > upper, upper, x)
+      return(x)
+}
+cont_data_clipped <- cont_data_toclip |> mutate(across(everything(), clip_outlier))
+max(cont_data_clipped) # test chol max = 370.375: Success. Outliers mitigated.
+
+summary(data1)
+
+data1$age <- cont_data_clipped$age
+data1$trestbps <-cont_data_clipped$trestbps
+data1$chol <- cont_data_clipped$chol
+data1$thalach <- cont_data_clipped$thalach
+data1$oldpeak <- cont_data_clipped$oldpeak
+summary(data1)
+
 #Center and scale continuous variables
 pre_proc <- preProcess(data1[c("age", "trestbps", "chol", "thalach", "oldpeak")], method = c("center", "scale"))
 data2 <- data1
@@ -67,30 +93,49 @@ ggplot(gather(data3), aes(value)) +
   facet_wrap(~key, scales = "free")
 ```
 
-```{r EDA2}
+```{r EDA_orig_var}
+cont_pred <- c('age', 'chol', 'oldpeak', 'thalach', 'trestbps')
+cont_data <- data1[, cont_pred]
+cont_data_long <- gather(cont_data)
+
+# boxplots
+ggplot(cont_data_long, aes(x = key, y = value, fill = key)) +
+  geom_boxplot(outlier.color = "red", outlier.shape = 1) +
+  stat_summary(fun = mean, geom = "point", shape = 20, size = 3, color = "blue", fill = "blue") +
+  labs(title = "Boxplots for Continuous Predictors of Heart Disease",
+       x = "Predictor",
+       y = "Value (raw)",
+       caption = "Note: Blue dots display mean values") +
+  theme_minimal(base_size = 15) +
+  theme(plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title.x = element_blank(),
+        legend.position = "none") +
+  scale_fill_brewer(palette = "Set3") +
+  geom_hline(yintercept = 0, color = "red", size = .5, linetype = "dashed")
+```
+
+```{r EDA2_processed}
 # continuous predictors
 cont_pred <- c('age', 'chol', 'oldpeak', 'thalach', 'trestbps')
 cont_data <- data3[, cont_pred]
+cont_data_long <- gather(cont_data) # 
 ex_cont_data <- data3[,!names(data3) %in% cont_pred]
 # boxplots
-ggplot(gather(cont_data), aes(value)) +
-  geom_boxplot() +
-  facet_wrap(~key, scales = "free") +
-  labs(title = "Boxplots for Continuous Predictors")
-```
-
-```{r outliers}
-# outlier handling
-for (pred in cont_pred) {
-  # identify outliers
-  z_score <- scale(data3[[pred]])
-  outlier <- which(abs(z_score) > 3)
-  
-  # remove outlier rows
-  rem_outliers <- data3[-outlier, ]
-}
-
-data3 <- rem_outliers
+ggplot(cont_data_long, aes(x = key, y = value, fill = key)) +
+  geom_boxplot(outlier.color = "red", outlier.shape = 1) +
+  stat_summary(fun = mean, geom = "point", shape = 20, size = 3, color = "blue", fill = "blue") +
+  labs(title = "Boxplots for Continuous Predictors of Heart Disease",
+       x = "Predictor",
+       y = "Value (centered and scaled)",
+       caption = "Note: Blue dots display mean values") +
+  theme_minimal(base_size = 15) +
+  theme(plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title.x = element_blank(),
+        legend.position = "none") +
+  scale_fill_brewer(palette = "Set3") +
+  geom_hline(yintercept = 0, color = "red", size = .5, linetype = "dashed")
 ```
 
 ```{r EDA3}
@@ -344,7 +389,7 @@ sens_spec_values <- data.frame(
   F_Score_Sens_Spec = c(LR_sens_spec, LDA_sens_spec, 
           PLR_sens_spec, NSC_sens_spec)
 )
-sens_spec_values %>% arrange(desc(F_Score_Sens_Spec))
+sens_spec_values |> arrange(desc(F_Score_Sens_Spec))
 
 #confusion Matrix
 LR_CM <- confusionMatrix(LR_model, norm="none")
@@ -424,8 +469,8 @@ Test_performance
 
 ```{r important_vars}
 LR_ImpVar <- varImp(LR_model, scale = FALSE)
-top5_LR_ImpVar <- LR_ImpVar$importance %>% 
-  arrange(desc(Overall)) %>% slice(1:5)
+top5_LR_ImpVar <- LR_ImpVar$importance |> 
+  arrange(desc(Overall)) |> slice(1:5)
 
 LDA_ImpVar  <-  varImp(LDA_model)
 importance_df <- LDA_ImpVar$importance
@@ -434,7 +479,7 @@ top5_LDA_ImpVar <- head(top5_LDA_ImpVar["X1"],5)
 
 PLR_ImpVar <- varImp(PLR_model)
 suppressPackageStartupMessages({top5_PLR_ImpVar <- 
-  PLR_ImpVar$importance %>% arrange(desc(Overall)) %>% slice(1:5)})
+  PLR_ImpVar$importance |> arrange(desc(Overall)) |> slice(1:5)})
 
 NSC_ImpVar <- varImp(NSC_model)
 importance_df <- NSC_ImpVar$importance
