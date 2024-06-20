@@ -256,13 +256,45 @@ ctrl <- trainControl(method = "repeatedcv", repeats = 5,
 tunegrid <- expand.grid(alpha = c(0,  .1,  .2, .4, .6, .8, 1),
                         lambda = seq(.01, .2, length = 10))
 
+```
+
+```{r model}
+indx <- createFolds(train_y, returnTrain = TRUE)
+ctrl <- trainControl(method = "cv", index = indx)
+nnetGrid <- expand.grid(decay = c(0, 0.01, .1), 
+                        size = c(3, 7, 11, 13))
+
+# Neural Network
+set.seed(123)
+nn_model <- suppressWarnings(train(x = train_x, y = train_y,
+    method = "nnet",
+    tuneGrid = nnetGrid,
+    trControl = ctrl,
+    preProc = c("center", "scale"),
+    linout = FALSE,
+    trace = FALSE))
+
+# Support Vector Machine 
+set.seed(123)
+svm_model <-  train(x = train_x, y = train_y,
+                  method = "svmRadial",
+                  preProc = c("center", "scale"),
+                  tuneLength = 14,
+                  trControl = ctrl)
+
+# k-Nearest Neighbors
+set.seed(123)
+knn_model <-  train(x = train_x, y = train_y,
+                 method = "knn",
+                 preProc = c("center", "scale"),
+                 tuneGrid = data.frame(k = 1:20),
+                 trControl = ctrl)
 
 ```
 
 ```{r model}
-# Logistic Regression
 levels(train_y) <- make.names(levels(train_y))
-set.seed(476)
+# Logistic Regression
 LR_model <-suppressWarnings(
   train(x = train_x, y = train_y,
            method = "glm",
