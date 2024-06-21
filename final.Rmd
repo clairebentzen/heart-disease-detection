@@ -23,6 +23,8 @@ library(tibble)
 suppressPackageStartupMessages(library(pROC))
 suppressPackageStartupMessages(library(ggplot2))
 library(corrplot)
+library(ggplot2)
+library(gridExtra)
 ```
 
 ```{r preprocess}
@@ -548,59 +550,47 @@ Test_performance |> arrange(desc(Harmonic))
 
 ```
 
-```{r important_vars}
-LR_ImpVar <- varImp(LR_model, scale = FALSE)
-top5_LR_ImpVar <- LR_ImpVar$importance |> 
-  arrange(desc(Overall)) |> slice(1:5)
+```{r Important_var_plot}
+plots <- list()
+top_vars <- list()
 
-LDA_ImpVar  <-  varImp(LDA_model)
-importance_df <- LDA_ImpVar$importance
-top5_LDA_ImpVar <- importance_df[order(-importance_df$X1), ]
-top5_LDA_ImpVar <- head(top5_LDA_ImpVar["X1"],5)
+model_names <- c("LR_model", "LDA_model", "PLR_model", "NSC_model", "nn_model", "svm_model", "knn_model")
+titles <- c("Logistic Regression", "LDA", "Penalized Logistic Regression", "NSC", "Neural Network", "SVM", "k-NN")
 
-PLR_ImpVar <- varImp(PLR_model)
-suppressPackageStartupMessages({top5_PLR_ImpVar <- 
-  PLR_ImpVar$importance |> arrange(desc(Overall)) |> slice(1:5)})
+for (i in seq_along(model_names)) {
+    model <- get(model_names[i])
+    title <- titles[i]
+    
+    imp_var <- varImp(model, scale = FALSE)
+    imp_var_df <- as.data.frame(imp_var$importance)
+    imp_var_df$Variable <- rownames(imp_var$importance)
+    
+    # Check if the 'Overall' column exists
+    if (!("Overall" %in% colnames(imp_var_df))) {
+        imp_var_df <- imp_var_df %>%
+            rowwise() %>%
+            mutate(Overall = mean(c_across(starts_with("X")), na.rm = TRUE)) %>%
+            ungroup()
+    }
+    
+    top5_imp_var <- imp_var_df %>% arrange(desc(Overall)) %>% slice(1:5)
+    
+    p <- ggplot(top5_imp_var, aes(x = reorder(Variable, Overall), y = Overall)) +
+        geom_bar(stat = "identity") +
+        coord_flip() +
+        ggtitle(title) +
+        theme_minimal() +
+        labs(x = "Variable", y = "Importance")
+    
+    plots[[i]] <- p
+    top_vars[[i]] <- top5_imp_var$Variable
 
-NSC_ImpVar <- varImp(NSC_model)
-importance_df <- NSC_ImpVar$importance
-top5_NSC_ImpVar <- importance_df[order(-importance_df$X1), ]
-top5_NSC_ImpVar <- head(top5_NSC_ImpVar["X1"],5)
+}
+all_top_vars <- unlist(top_vars)
+most_common_vars <- names(head(sort(table(all_top_vars), decreasing = TRUE), 5))
+most_common_vars
 
-nnet_ImpVar <- varImp(nn_model, scale = FALSE)
-top5_nnet_ImpVar <- nnet_ImpVar$importance |> 
-  arrange(desc(Overall)) |> slice(1:5)
+do.call(grid.arrange, c(plots, ncol = 2))
 
-svm_ImpVar <- varImp(svm_model, scale = FALSE)
-svm_ImpVar_df <- as.data.frame(svm_ImpVar$importance)
-svm_ImpVar_df$Variable <- rownames(svm_ImpVar$importance) 
-svm_ImpVar_summary <- svm_ImpVar_df %>%
-     rowwise() %>%
-     mutate(Overall = mean(c_across(starts_with('X')), na.rm = TRUE)) %>%
-     ungroup()
-top5_svm_ImpVar <- svm_ImpVar_summary %>%
-     arrange(desc(Overall)) %>% slice(1:5) %>%
-     select(Variable, Overall)
 
-knn_ImpVar <- varImp(knn_model, scale = FALSE)
-knn_ImpVar_df <- as.data.frame(knn_ImpVar$importance)
-knn_ImpVar_df$Variable <- rownames(knn_ImpVar$importance) 
-knn_ImpVar_summary <- knn_ImpVar_df %>%
-     rowwise() %>%
-     mutate(Overall = mean(c_across(starts_with('X')), na.rm = TRUE)) %>%
-     ungroup()
-top5_knn_ImpVar <- knn_ImpVar_summary %>%
-     arrange(desc(Overall)) %>% slice(1:5) %>%
-     select(Variable, Overall)
-
-top5_ImpVar <- data.frame(
-  LR_ImpVar = rownames(top5_LR_ImpVar),
-  LDA_ImpVar =  rownames(top5_LDA_ImpVar),
-  PLR_ImpVar =  rownames(top5_PLR_ImpVar),
-  NSC_ImpVar = rownames(top5_NSC_ImpVar),
-  nnet_ImpVar = rownames(top5_nnet_ImpVar),
-  svm_ImpVar = top5_svm_ImpVar$Variable,
-  knn_ImpVar = top5_knn_ImpVar$Variable
-)
-top5_ImpVar
 ```
