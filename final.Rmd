@@ -456,6 +456,25 @@ Model_performance <-  data.frame(
 Model_performance |> arrange(desc(Harmonic))
 ```
 
+```{r resampling_CI}
+# resample validation results
+model_metrics <- resamples(list(
+  LDA = LDA_model,
+  PLR = PLR_model,
+  SVM = svm_model,
+  KNN = knn_model,
+  LR = LR_model,
+  NSC = NSC_model,
+  NN = nn_model
+))
+
+# plot harmonic mean confidence intervals
+dotplot(model_metrics, metric = "harmonic", main = "Harmonic Mean Resampling Model Performance")
+
+# plot AUC confidence intervals
+dotplot(model_metrics, metric = "auc", main = "AUC Resampling Model Performance")
+```
+
 ```{r predict}
 # convert all predictors to numeric
 test_x <- data.frame(lapply(test_x, function(x) if (is.factor(x)) as.numeric(as.character(x)) else x))
@@ -546,8 +565,18 @@ Test_performance <-  data.frame(
                nnet_harm_pred, svm_harm_pred, knn_harm_pred)
 )
 Test_performance |> arrange(desc(Harmonic))
+```
 
-
+```{r roc_plot}
+# compare ROC curves
+plot(LDA_roc_pred, col = "red", main = "ROC Curves")
+lines(PLR_roc_pred, col = "blue")
+lines(svm_roc_pred, col = "green")
+lines(knn_roc_pred, col = "pink")
+lines(LR_roc_pred, col = "purple")
+lines(NSC_roc_pred, col = "orange")
+lines(nnet_roc_pred, col = "yellow")
+legend("bottomright", legend = c("LDA", "PLR", "SVM", "KNN", "LR", "NSC", "NN"), col = c("red", "blue", "green", "pink", "purple", "orange", "yellow"), lwd = 2)
 ```
 
 ```{r Important_var_plot}
@@ -591,6 +620,10 @@ most_common_vars <- names(head(sort(table(all_top_vars), decreasing = TRUE), 5))
 most_common_vars
 
 do.call(grid.arrange, c(plots, ncol = 2))
+```
 
+```{r chosen_model}
+# plot LDA variable importance
+plot(varImp(LDA_model, scale = FALSE), main = "LDA Variable Importance")
 
 ```
