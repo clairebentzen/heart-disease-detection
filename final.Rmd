@@ -350,7 +350,7 @@ nnetGrid <- expand.grid(decay = c(0, 0.01, .1),
                         size = c(3, 7, 11, 13))
 
 # Neural Network
-set.seed(123)
+set.seed(476)
 nn_model <- suppressWarnings(train(x = train_x, y = train_y,
     method = "nnet",
     tuneGrid = nnetGrid,
@@ -361,7 +361,7 @@ nn_model <- suppressWarnings(train(x = train_x, y = train_y,
     trace = FALSE))
 
 # Support Vector Machine 
-set.seed(123)
+set.seed(476)
 svm_model <-  train(x = train_x, y = train_y,
                   method = "svmRadial",
                   preProc = c("center", "scale"),
@@ -369,7 +369,7 @@ svm_model <-  train(x = train_x, y = train_y,
                   tuneLength = 14,
                   trControl = ctrl)
 # k-Nearest Neighbors
-set.seed(123)
+set.seed(476)
 knn_model <-  train(x = train_x, y = train_y,
                  method = "knn",
                  preProc = c("center", "scale"),
@@ -569,8 +569,8 @@ Test_performance |> arrange(desc(Harmonic))
 
 ```{r roc_plot}
 # compare ROC curves
-plot(LDA_roc_pred, col = "red", main = "ROC Curves")
-lines(PLR_roc_pred, col = "blue")
+plot(LDA_roc_pred, col = "red", main = "ROC Curves", lty = 1)
+lines(PLR_roc_pred, col = "blue", lty = 2)
 lines(svm_roc_pred, col = "green")
 lines(knn_roc_pred, col = "pink")
 lines(LR_roc_pred, col = "purple")
