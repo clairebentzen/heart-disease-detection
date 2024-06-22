@@ -3,9 +3,9 @@ title: "Team 4 - Heart Disease Detection"
 author: "Claire Bentzen, John Vincent Deniega, Ravita Kartawinata"
 date: "`r Sys.Date()`"
 format: 
-    docx
+    #html: 
     #    toc: true
-    #pdf: default
+    pdf: default
 editor: visual
 ---
 
@@ -16,7 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r library}
 suppressPackageStartupMessages(library(caret))
 library(tidyr)
-suppressPackageStartupMessages(library(tidyverse))
+library(tidyverse)
 library(gt)
 library(dplyr)
 library(tibble)
@@ -24,16 +24,16 @@ suppressPackageStartupMessages(library(pROC))
 suppressPackageStartupMessages(library(ggplot2))
 library(corrplot)
 library(ggplot2)
-suppressPackageStartupMessages(library(gridExtra))
+library(gridExtra)
 ```
 
-```{r read_data}
-seed <- 476
+```{r preprocess}
+seed <- 123
 #Ingest
 data <- read.csv("heart.csv") #Change to your respective local path
 ```
 
-```{r preprocess1}
+```{r preprocess}
 #Check for missing columns
 missing_col <- colSums(is.na(data))
 cat('No missing values found: \n')
@@ -88,14 +88,14 @@ data3$thal <- NULL # Drop the "thal" column now that we have dummy variables
 cat('NewData dimension: ',nrow(data3),'remaining rows. This is still sufficient since ncol^2 is less than #nrows \n')
 ```
 
-```{r EDA1}
+```{r EDA}
 #Check column histograms for unusual distributions
 ggplot(gather(data3), aes(value)) +
   geom_histogram(bins = 20) +
   facet_wrap(~key, scales = "free")
 ```
 
-```{r EDA2}
+```{r EDA_orig_var}
 cont_pred <- c('age', 'chol', 'oldpeak', 'thalach', 'trestbps')
 cont_data <- data1[, cont_pred]
 cont_data_long <- gather(cont_data)
@@ -117,7 +117,7 @@ ggplot(cont_data_long, aes(x = key, y = value, fill = key)) +
   geom_hline(yintercept = 0, color = "red", size = .5, linetype = "dashed")
 ```
 
-```{r EDA3}
+```{r EDA2_processed}
 # continuous predictors
 cont_pred <- c('age', 'chol', 'oldpeak', 'thalach', 'trestbps')
 cont_data <- data3[, cont_pred]
@@ -140,7 +140,7 @@ ggplot(cont_data_long, aes(x = key, y = value, fill = key)) +
   geom_hline(yintercept = 0, color = "red", size = .5, linetype = "dashed")
 ```
 
-```{r EDA4}
+```{r EDA3}
 data3$target <- as.factor(data3$target)
 data3$sex <- as.factor(data3$sex)
 # stacked bar plot for heart disease detection in males vs females
@@ -155,7 +155,7 @@ ggplot(data3, aes(x = sex, fill = target)) +
   theme_minimal()
 ```
 
-```{r EDA5}
+```{r EDA4}
 data3$target <- as.factor(data3$target)
 data3$thal.1 <- as.factor(data3$thal.1)
 data3$thal.2 <- as.factor(data3$thal.2)
@@ -192,7 +192,7 @@ ggplot(data3, aes(x = thal.3, fill = target)) +
   theme_minimal()
 ```
 
-```{r EDA6}
+```{r EDA5}
 # histogram of age segmented by heart disease detection
 ggplot(data3, aes(x = age, fill = target)) +
   geom_histogram(binwidth = .1, position = "stack", alpha = 0.5) +
@@ -203,7 +203,7 @@ ggplot(data3, aes(x = age, fill = target)) +
   theme_minimal()
 ```
 
-```{r preprocess2}
+```{r preprocess}
 #Check for near-zero variance columns
 nzv <- nearZeroVar(data3)
 cat('Removed near zero predictor: ', colnames(data3)[nzv],'\n')
@@ -231,7 +231,7 @@ s_correlations <- round(cor(ex_cont_data[, !names(ex_cont_data) %in% "target"],
                       method = "spearman"), 3)
 s_highCorr <- findCorrelation(s_correlations, cutoff = .75)
 data5 <- data4[, -s_highCorr]
-
+cont_data
 # correlation plot among predictor variables
 p_correlations <- cor(cont_data)
 c_correlations <- cor(ex_cont_data)
@@ -255,7 +255,7 @@ data_conf_check$target <- as.integer(data_conf_check$target)
 data_conf_check$age <- as.integer(data_conf_check$age)
 data_conf_check$sex <- as.integer(data_conf_check$sex)
 data_conf_check$thal.2 <- as.integer(data_conf_check$thal.2)
-
+data_conf_check
 cor(data_conf_check[c("target", "age", "sex", "thal.2")])
 ```
 
@@ -304,7 +304,7 @@ tunegrid <- expand.grid(alpha = c(0,  .1,  .2, .4, .6, .8, 1),
 
 ```
 
-```{r model_linear}
+```{r model echo=FALSE}
 levels(train_y) <- make.names(levels(train_y))
 # Logistic Regression
 LR_model <-suppressWarnings(
@@ -344,7 +344,7 @@ NSC_model <-suppressWarnings(
           trControl = ctrl))
 ```
 
-```{r model_nonlinear}
+```{r model echo=FALSE}
 
 nnetGrid <- expand.grid(decay = c(0, 0.01, .1), 
                         size = c(3, 7, 11, 13))
@@ -374,7 +374,7 @@ knn_model <-  train(x = train_x, y = train_y,
                  method = "knn",
                  preProc = c("center", "scale"),
                  metric = "sens_spec_harm",
-                 tuneGrid = data.frame(k = 1:100),
+                 tuneGrid = data.frame(k = 1:20),
                  trControl = ctrl)
 ```
 
@@ -531,13 +531,13 @@ spec <- knn_CM_pred$byClass['Specificity']
 knn_harm_pred <- (2 * sens * spec) / (sens + spec)
 
 #ROC
-LR_roc_pred <- suppressWarnings(roc(test_results$obs, as.numeric(test_results$LR)))
-LDA_roc_pred <- suppressWarnings(roc(test_results$obs, as.numeric(test_results$LDA)))
-PLR_roc_pred <- suppressWarnings(roc(test_results$obs, as.numeric(test_results$PLR)))
-NSC_roc_pred <- suppressWarnings(roc(test_results$obs, as.numeric(test_results$NSC)))
-nnet_roc_pred <- suppressWarnings(roc(test_results$obs, as.numeric(test_results$nnet)))
-svm_roc_pred <- suppressWarnings(roc(test_results$obs, as.numeric(test_results$svm)))
-knn_roc_pred <- suppressWarnings(roc(test_results$obs, as.numeric(test_results$knn)))
+LR_roc_pred <- roc(test_results$obs, as.numeric(test_results$LR))
+LDA_roc_pred <- roc(test_results$obs, as.numeric(test_results$LDA))
+PLR_roc_pred <- roc(test_results$obs, as.numeric(test_results$PLR))
+NSC_roc_pred <- roc(test_results$obs, as.numeric(test_results$NSC))
+nnet_roc_pred <- roc(test_results$obs, as.numeric(test_results$nnet))
+svm_roc_pred <- roc(test_results$obs, as.numeric(test_results$svm))
+knn_roc_pred <- roc(test_results$obs, as.numeric(test_results$knn))
 
 Test_performance <-  data.frame(
   Model = c("LogisticRegression", "LinearDiscriminant",
@@ -673,9 +673,9 @@ do.call(grid.arrange, c(plots, ncol = 2))
 ```
 
 ```{r chosen_model}
-# plot kNN variable importance
-plot(varImp(knn_model, scale = FALSE), main = "kNN Variable Importance")
+# plot LDA variable importance
+plot(varImp(LDA_model, scale = FALSE), main = "LDA Variable Importance")
 
-# knn Test Performance
-Test_performance[7, ]
+# LDA Test Performance
+Test_performance[2, ]
 ```
