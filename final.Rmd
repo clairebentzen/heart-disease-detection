@@ -14,6 +14,7 @@ editor: visual
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## Load Libraries
 ```{r library}
 suppressPackageStartupMessages(library(caret))
 library(tidyr)
@@ -28,6 +29,7 @@ library(ggplot2)
 suppressPackageStartupMessages(library(gridExtra))
 ```
 
+## Data Preprocessing
 ```{r read_data}
 seed <- 123
 #Ingest
@@ -89,12 +91,14 @@ data3$thal <- NULL # Drop the "thal" column now that we have dummy variables
 cat('NewData dimension: ',nrow(data3),'remaining rows. This is still sufficient since ncol^2 is less than #nrows \n')
 ```
 
+## Exploratory Data Analysis
 ```{r EDA}
 #Check column histograms for unusual distributions
 ggplot(gather(data3), aes(value)) +
   geom_histogram(bins = 20) +
   facet_wrap(~key, scales = "free")
 ```
+The predictors age and thalach are very slightly right skewed while the predictor oldpeak is left skewed. The predictor chol is approximately normally distributed.
 
 ```{r EDA1_orig_var}
 cont_pred <- c('age', 'chol', 'oldpeak', 'thalach', 'trestbps')
@@ -239,6 +243,7 @@ c_correlations <- cor(ex_cont_data)
 p_corr_plot <- corrplot(p_correlations)
 c_corr_plot <- corrplot(c_correlations)
 ```
+There are no high correlations among the continuous predictors. The correlation plot suggests that there is a strong negative correlation between thal.2 and thal.3. These predictors represent fixed and reversible defects, respectively.
 
 ```{r confounders}
 # logistic regression model with possible confounding predictors
@@ -262,6 +267,7 @@ cor(data_conf_check[c("target", "age", "sex", "thal.2")])
 
 Age and sex have a very low correlation with the target variable, so we can keep them. The correlation thal.2 has with the target variable is moderate, but not high enough to indicate that there might be significant changes to the outcome of the model if we keep it.
 
+## Data Splitting
 ```{r split}
 set.seed(seed)
 y <- data5$target 
@@ -276,6 +282,7 @@ train_x <- data.frame(lapply(train_x, function(x) if(is.factor(x)) as.numeric(as
 cat('Number of training sample:', nrow(train_x), 'and test samples: ',nrow(test_x), 'number of predictors:', ncol(train_x))
 ```
 
+## Modeling
 ```{r cross validation and hypertune binary classify}
 # Evaluation Metric
 sens_spec_harm <- function(data, lev = NULL, model = NULL) {
@@ -379,6 +386,7 @@ knn_model <-  train(x = train_x, y = train_y,
                  trControl = ctrl)
 ```
 
+## Model Validation and Performance
 ```{r model-performance}
 #Harmonic
 LR_sens_spec <- LR_model$results$harmonic
@@ -456,6 +464,7 @@ Model_performance <-  data.frame(
 #Sort by optimal detection of all disease cases + minimizing false negatives
 Model_performance |> arrange(desc(Harmonic))
 ```
+The KNN model performs the best on the training data.
 
 ```{r validation_CI}
 # resample validation results
@@ -567,6 +576,7 @@ Test_performance <-  data.frame(
 )
 Test_performance |> arrange(desc(Harmonic))
 ```
+The KNN model performs the best on the test data. This model is selected as the optimal model.
 
 ```{r roc_plot}
 # compare ROC curves
@@ -672,7 +682,10 @@ most_common_vars
 
 do.call(grid.arrange, c(plots, ncol = 2))
 ```
+The most importance variables among all the models appear to be cp, ca, exang, thal.2, and sex.
 
+## Optimal model
+The KNN model was chosen as the optimal model due to the best performance in terms of AUC, harmonic mean between sensitivity and specificity, and accuracy.
 ```{r chosen_model}
 # plot kNN variable importance
 plot(varImp(knn_model, scale = FALSE), main = "kNN Variable Importance")
