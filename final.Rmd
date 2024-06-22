@@ -4,6 +4,7 @@ author: "Claire Bentzen, John Vincent Deniega, Ravita Kartawinata"
 date: "`r Sys.Date()`"
 format: 
     #html: 
+    #docx
     #    toc: true
     pdf: default
 editor: visual
@@ -16,7 +17,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r library}
 suppressPackageStartupMessages(library(caret))
 library(tidyr)
-library(tidyverse)
+suppressPackageStartupMessages(library(tidyverse))
 library(gt)
 library(dplyr)
 library(tibble)
@@ -24,16 +25,16 @@ suppressPackageStartupMessages(library(pROC))
 suppressPackageStartupMessages(library(ggplot2))
 library(corrplot)
 library(ggplot2)
-library(gridExtra)
+suppressPackageStartupMessages(library(gridExtra))
 ```
 
-```{r preprocess}
+```{r read_data}
 seed <- 123
 #Ingest
 data <- read.csv("heart.csv") #Change to your respective local path
 ```
 
-```{r preprocess}
+```{r preprocess1}
 #Check for missing columns
 missing_col <- colSums(is.na(data))
 cat('No missing values found: \n')
@@ -95,7 +96,7 @@ ggplot(gather(data3), aes(value)) +
   facet_wrap(~key, scales = "free")
 ```
 
-```{r EDA_orig_var}
+```{r EDA1_orig_var}
 cont_pred <- c('age', 'chol', 'oldpeak', 'thalach', 'trestbps')
 cont_data <- data1[, cont_pred]
 cont_data_long <- gather(cont_data)
@@ -203,7 +204,7 @@ ggplot(data3, aes(x = age, fill = target)) +
   theme_minimal()
 ```
 
-```{r preprocess}
+```{r preprocess2}
 #Check for near-zero variance columns
 nzv <- nearZeroVar(data3)
 cat('Removed near zero predictor: ', colnames(data3)[nzv],'\n')
@@ -304,7 +305,7 @@ tunegrid <- expand.grid(alpha = c(0,  .1,  .2, .4, .6, .8, 1),
 
 ```
 
-```{r model echo=FALSE}
+```{r model_linear}
 levels(train_y) <- make.names(levels(train_y))
 # Logistic Regression
 LR_model <-suppressWarnings(
@@ -344,7 +345,7 @@ NSC_model <-suppressWarnings(
           trControl = ctrl))
 ```
 
-```{r model echo=FALSE}
+```{r model_nonlinear}
 
 nnetGrid <- expand.grid(decay = c(0, 0.01, .1), 
                         size = c(3, 7, 11, 13))
@@ -531,13 +532,13 @@ spec <- knn_CM_pred$byClass['Specificity']
 knn_harm_pred <- (2 * sens * spec) / (sens + spec)
 
 #ROC
-LR_roc_pred <- roc(test_results$obs, as.numeric(test_results$LR))
-LDA_roc_pred <- roc(test_results$obs, as.numeric(test_results$LDA))
-PLR_roc_pred <- roc(test_results$obs, as.numeric(test_results$PLR))
-NSC_roc_pred <- roc(test_results$obs, as.numeric(test_results$NSC))
-nnet_roc_pred <- roc(test_results$obs, as.numeric(test_results$nnet))
-svm_roc_pred <- roc(test_results$obs, as.numeric(test_results$svm))
-knn_roc_pred <- roc(test_results$obs, as.numeric(test_results$knn))
+LR_roc_pred <- suppressWarnings(roc(test_results$obs, as.numeric(test_results$LR)))
+LDA_roc_pred <- suppressWarnings(roc(test_results$obs, as.numeric(test_results$LDA)))
+PLR_roc_pred <- suppressWarnings(roc(test_results$obs, as.numeric(test_results$PLR)))
+NSC_roc_pred <- suppressWarnings(roc(test_results$obs, as.numeric(test_results$NSC)))
+nnet_roc_pred <- suppressWarnings(roc(test_results$obs, as.numeric(test_results$nnet)))
+svm_roc_pred <- suppressWarnings(roc(test_results$obs, as.numeric(test_results$svm)))
+knn_roc_pred <- suppressWarnings(roc(test_results$obs, as.numeric(test_results$knn)))
 
 Test_performance <-  data.frame(
   Model = c("LogisticRegression", "LinearDiscriminant",
@@ -673,9 +674,9 @@ do.call(grid.arrange, c(plots, ncol = 2))
 ```
 
 ```{r chosen_model}
-# plot LDA variable importance
-plot(varImp(LDA_model, scale = FALSE), main = "LDA Variable Importance")
+# plot kNN variable importance
+plot(varImp(knn_model, scale = FALSE), main = "kNN Variable Importance")
 
-# LDA Test Performance
-Test_performance[2, ]
+# kNN Test Performance
+Test_performance[7, ]
 ```
