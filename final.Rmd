@@ -4,9 +4,9 @@ author: "Claire Bentzen, John Vincent Deniega, Ravita Kartawinata"
 date: "`r Sys.Date()`"
 format: 
     #html: 
-    #docx
+    docx: default
     #    toc: true
-    pdf: default
+    #pdf: default
 editor: visual
 ---
 
@@ -15,6 +15,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ## Load Libraries
+
 ```{r library}
 suppressPackageStartupMessages(library(caret))
 library(tidyr)
@@ -24,12 +25,13 @@ library(dplyr)
 library(tibble)
 suppressPackageStartupMessages(library(pROC))
 suppressPackageStartupMessages(library(ggplot2))
-library(corrplot)
+suppressPackageStartupMessages(library(corrplot))
 library(ggplot2)
 suppressPackageStartupMessages(library(gridExtra))
 ```
 
 ## Data Preprocessing
+
 ```{r read_data}
 seed <- 123
 #Ingest
@@ -47,9 +49,12 @@ duplicate_row <- data[duplicated(data),]
 cat('Count of duplicate rows: ', nrow(duplicate_row),'\n')
 
 data1 <- data[!duplicated(data),]
-cat('NewData dimension: ',nrow(data1),'remaining rows. This is still sufficient since ncol^2 is less than #nrows\n')
+cat('NewData dimension: ',nrow(data1),
+    'remaining rows. This is still sufficient since ncol^2 is less than #nrows\n')
 
-# Clip outliers to 1.5 times greater than minimum Q1 or maximum Q3 quartile prior to center and scaling so as not to excessively affect mean and standard deviation
+# Clipping outliers to 1.5 times greater than minimum Q1 or 
+# maximum Q3 quartile prior to center and scaling so as not to 
+# excessively affect mean and standard deviation
 cont_pred <- c('age', 'chol', 'oldpeak', 'thalach', 'trestbps')
 cont_data_toclip <- data1[, cont_pred]
 max(cont_data_toclip$chol) # test chol max = 564
@@ -63,8 +68,9 @@ clip_outlier <- function(x){
       x <- ifelse(x > upper, upper, x)
       return(x)
 }
-cont_data_clipped <- cont_data_toclip |> mutate(across(everything(), clip_outlier))
-max(cont_data_clipped) # test chol max = 370.375: Success. Outliers mitigated.
+cont_data_clipped <- cont_data_toclip |> 
+  mutate(across(everything(), clip_outlier))
+max(cont_data_clipped) #test chol max = 370.375
 
 summary(data1)
 
@@ -76,12 +82,21 @@ data1$oldpeak <- cont_data_clipped$oldpeak
 summary(data1)
 
 #Center and scale continuous variables
-pre_proc <- preProcess(data1[c("age", "trestbps", "chol", "thalach", "oldpeak")], method = c("center", "scale"))
+pre_proc <- preProcess(data1[c("age", 
+                               "trestbps", 
+                               "chol", 
+                               "thalach", 
+                               "oldpeak")], method = c("center", 
+                                                       "scale"))
 data2 <- data1
 data2[c("age", "trestbps", "chol", "thalach", "oldpeak")] <- 
-  predict(pre_proc, data1[c("age", "trestbps", "chol", "thalach", "oldpeak")])
+  predict(pre_proc, data1[c("age", 
+                            "trestbps", 
+                            "chol", 
+                            "thalach", 
+                            "oldpeak")])
 
-#Since "thal" is not ordinal, but effectively categorical, make dummy variables
+#Since "thal" is not ordinal, but categorical, make dummy variables
 data3 <- data2
 data3$thal <- factor(data3$thal)
 dummy <- dummyVars(~ thal, data = data3)
@@ -92,12 +107,14 @@ cat('NewData dimension: ',nrow(data3),'remaining rows. This is still sufficient 
 ```
 
 ## Exploratory Data Analysis
+
 ```{r EDA}
 #Check column histograms for unusual distributions
 ggplot(gather(data3), aes(value)) +
   geom_histogram(bins = 20) +
   facet_wrap(~key, scales = "free")
 ```
+
 The predictors age and thalach are very slightly right skewed while the predictor oldpeak is left skewed. The predictor chol is approximately normally distributed.
 
 ```{r EDA1_orig_var}
@@ -108,18 +125,29 @@ cont_data_long <- gather(cont_data)
 # boxplots
 ggplot(cont_data_long, aes(x = key, y = value, fill = key)) +
   geom_boxplot(outlier.color = "red", outlier.shape = 1) +
-  stat_summary(fun = mean, geom = "point", shape = 20, size = 3, color = "blue", fill = "blue") +
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 20, 
+               size = 3, 
+               color = "blue", 
+               fill = "blue") +
   labs(title = "Boxplots for Continuous Predictors of Heart Disease",
        x = "Predictor",
        y = "Value (raw)",
        caption = "Note: Blue dots display mean values") +
   theme_minimal(base_size = 15) +
-  theme(plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
+  theme(plot.title = element_text(hjust = 0.5, 
+                                  size = 15, 
+                                  face = "bold"),
         axis.text.x = element_text(angle = 45, hjust = 1),
         axis.title.x = element_blank(),
         legend.position = "none") +
   scale_fill_brewer(palette = "Set3") +
-  geom_hline(yintercept = 0, color = "red", size = .5, linetype = "dashed")
+  suppressWarnings(
+    geom_hline(yintercept = 0, 
+               color = "red", 
+               size = .5, 
+               linetype = "dashed"))
 ```
 
 ```{r EDA2_processed}
@@ -131,18 +159,28 @@ ex_cont_data <- data3[,!names(data3) %in% cont_pred]
 # boxplots
 ggplot(cont_data_long, aes(x = key, y = value, fill = key)) +
   geom_boxplot(outlier.color = "red", outlier.shape = 1) +
-  stat_summary(fun = mean, geom = "point", shape = 20, size = 3, color = "blue", fill = "blue") +
+  stat_summary(fun = mean, 
+               geom = "point", 
+               shape = 20, 
+               size = 3, 
+               color = "blue", 
+               fill = "blue") +
   labs(title = "Boxplots for Continuous Predictors of Heart Disease",
        x = "Predictor",
        y = "Value (centered and scaled)",
        caption = "Note: Blue dots display mean values") +
   theme_minimal(base_size = 15) +
-  theme(plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
+  theme(plot.title = element_text(hjust = 0.5, 
+                                  size = 15, 
+                                  face = "bold"),
         axis.text.x = element_text(angle = 45, hjust = 1),
         axis.title.x = element_blank(),
         legend.position = "none") +
   scale_fill_brewer(palette = "Set3") +
-  geom_hline(yintercept = 0, color = "red", size = .5, linetype = "dashed")
+  geom_hline(yintercept = 0, 
+             color = "red", 
+             size = .5, 
+             linetype = "dashed")
 ```
 
 ```{r EDA3}
@@ -183,7 +221,8 @@ ggplot(data3, aes(x = thal.2, fill = target)) +
        x = "Thal = Fixed Defect",
        y = "Count",
        fill = "Heart Disease") +
-  scale_x_discrete(labels = c("0" = "Other", "1" = "Fixed Defect")) +
+  scale_x_discrete(labels = c("0" = "Other", 
+                              "1" = "Fixed Defect")) +
   theme_minimal()
 
 # stacked bar plot for heart disease detection in thal.3
@@ -215,7 +254,8 @@ cat('Removed near zero predictor: ', colnames(data3)[nzv],'\n')
 
 data4 <- data3[, -nearZeroVar(data3)]
 cat('NewData dimension: ',nrow(data4),'rows', ncol(data4), 'columns\n') 
-# Note: There appears to be an error in documentation where thal is actually thal+1 category
+# Note: There appears to be an error in documentation
+# where thal is actually thal+1 category
 # Normal = 1
 # Fixed Defect = 2
 # Reversable Defect = 3
@@ -233,21 +273,24 @@ ex_cont_data$thal.2 <- as.integer(ex_cont_data$thal.2)
 ex_cont_data$thal.3 <- as.integer(ex_cont_data$thal.3)
 
 s_correlations <- round(cor(ex_cont_data[, !names(ex_cont_data) %in% "target"], 
-                      method = "spearman"), 3)
+                            method = "spearman"), 3)
 s_highCorr <- findCorrelation(s_correlations, cutoff = .75)
 data5 <- data4[, -s_highCorr]
-cont_data
+
 # correlation plot among predictor variables
 p_correlations <- cor(cont_data)
 c_correlations <- cor(ex_cont_data)
 p_corr_plot <- corrplot(p_correlations)
 c_corr_plot <- corrplot(c_correlations)
 ```
+
 There are no high correlations among the continuous predictors. The correlation plot suggests that there is a strong negative correlation between thal.2 and thal.3. These predictors represent fixed and reversible defects, respectively.
 
 ```{r confounders}
 # logistic regression model with possible confounding predictors
-confounding_model <- glm(target ~ age + sex + thal.2 + thal.3, data = data5, family = "binomial")
+confounding_model <- glm(target ~ age + sex + thal.2 + thal.3, 
+                         data = data5, 
+                         family = "binomial")
 summary(confounding_model)
 ```
 
@@ -261,33 +304,39 @@ data_conf_check$target <- as.integer(data_conf_check$target)
 data_conf_check$age <- as.integer(data_conf_check$age)
 data_conf_check$sex <- as.integer(data_conf_check$sex)
 data_conf_check$thal.2 <- as.integer(data_conf_check$thal.2)
-data_conf_check
 cor(data_conf_check[c("target", "age", "sex", "thal.2")])
 ```
 
 Age and sex have a very low correlation with the target variable, so we can keep them. The correlation thal.2 has with the target variable is moderate, but not high enough to indicate that there might be significant changes to the outcome of the model if we keep it.
 
 ## Data Splitting
+
 ```{r split}
 set.seed(seed)
-y <- data5$target 
+y <- data5$target
 x <- data5[, !names(data5) %in% "target"] # Predictors only
 
-trainingRows <- createDataPartition(y, p = .80, list = FALSE) #list of indices from training
+trainingRows <- createDataPartition(y, p = .80, list = FALSE)
 train_y <- y[trainingRows]
 test_y <- y[-trainingRows]
 train_x <- x[trainingRows, ] 
 test_x <- x[-trainingRows, ]
-train_x <- data.frame(lapply(train_x, function(x) if(is.factor(x)) as.numeric(as.character(x)) else x))
+train_x <- data.frame(lapply(train_x, function(x) 
+  if(is.factor(x)) as.numeric(as.character(x)) else x))
 cat('Number of training sample:', nrow(train_x), 'and test samples: ',nrow(test_x), 'number of predictors:', ncol(train_x))
 ```
 
 ## Modeling
+
 ```{r cross validation and hypertune binary classify}
 # Evaluation Metric
 sens_spec_harm <- function(data, lev = NULL, model = NULL) {
-  sens <- sensitivity(data$pred, data$obs, positive = levels(data$obs)[1])
-  spec <- specificity(data$pred, data$obs, positive = levels(data$obs)[1])
+  sens <- sensitivity(data$pred, 
+                      data$obs, 
+                      positive = levels(data$obs)[1])
+  spec <- specificity(data$pred, 
+                      data$obs, 
+                      positive = levels(data$obs)[1])
   harmonic <- (2 * sens * spec) / (sens + spec)
   suppressMessages({
   roc <- roc(response = data$obs, 
@@ -370,23 +419,28 @@ nn_model <- suppressWarnings(train(x = train_x, y = train_y,
 
 # Support Vector Machine 
 set.seed(476)
+suppressWarnings({
 svm_model <-  train(x = train_x, y = train_y,
                   method = "svmRadial",
                   preProc = c("center", "scale"),
                   metric = "sens_spec_harm",
                   tuneLength = 14,
                   trControl = ctrl)
+})
 # k-Nearest Neighbors
 set.seed(476)
+suppressWarnings({
 knn_model <-  train(x = train_x, y = train_y,
                  method = "knn",
                  preProc = c("center", "scale"),
                  metric = "sens_spec_harm",
                  tuneGrid = data.frame(k = 1:20),
                  trControl = ctrl)
+})
 ```
 
 ## Model Validation and Performance
+
 ```{r model-performance}
 #Harmonic
 LR_sens_spec <- LR_model$results$harmonic
@@ -395,9 +449,9 @@ PLR_sens_spec <- mean(PLR_model$results$harmonic)
 NSC_sens_spec <- mean(NSC_model$results$harmonic)
 
 # Using values of models optimized for "harmonic"
-NN_sens_spec <- max(nn_model$results$harmonic) # use size = 13 and decay = .1
-SVM_sens_spec <- max(svm_model$results$harmonic) # use S=.05041146 andC=.25
-KNN_sens_spec <- max(knn_model$results$harmonic) # use k=19
+NN_sens_spec <- max(nn_model$results$harmonic) #size = 13; decay = .1
+SVM_sens_spec <- max(svm_model$results$harmonic) #S=.05041146; C=.25
+KNN_sens_spec <- max(knn_model$results$harmonic) #k=20
 
 sens_spec_values <- data.frame(
   Model = c("LogisticRegression", 
@@ -416,7 +470,7 @@ sens_spec_values <- data.frame(
                         KNN_sens_spec)
 )
 
-#confusion Matrix
+#Confusion Matrices
 LR_CM <- confusionMatrix(LR_model, norm="none")
 LDA_CM <- confusionMatrix(LDA_model, norm="none")
 PLR_CM <- confusionMatrix(PLR_model, norm="none")
@@ -461,9 +515,11 @@ Model_performance <-  data.frame(
                SVM_sens_spec,
                KNN_sens_spec)
 )
-#Sort by optimal detection of all disease cases + minimizing false negatives
+#Sort by optimal detection of all disease cases
+# while balancing/minimizing false negatives
 Model_performance |> arrange(desc(Harmonic))
 ```
+
 The KNN model performs the best on the training data.
 
 ```{r validation_CI}
@@ -479,15 +535,20 @@ model_metrics <- resamples(list(
 ))
 
 # plot harmonic mean confidence intervals
-dotplot(model_metrics, metric = "harmonic", main = "Harmonic Mean Resampling Model Performance")
+dotplot(model_metrics, 
+        metric = "harmonic", 
+        main = "Harmonic Mean Resampling Model Performance")
 
 # plot AUC confidence intervals
-dotplot(model_metrics, metric = "auc", main = "AUC Resampling Model Performance")
+dotplot(model_metrics, 
+        metric = "auc", 
+        main = "AUC Resampling Model Performance")
 ```
 
 ```{r predict}
 # convert all predictors to numeric
-test_x <- data.frame(lapply(test_x, function(x) if (is.factor(x)) as.numeric(as.character(x)) else x))
+test_x <- data.frame(lapply(test_x, function(x) 
+  if (is.factor(x)) as.numeric(as.character(x)) else x))
 
 levels(test_y) <- make.names(levels(test_y))
               
@@ -508,16 +569,31 @@ test_results$knn <- predict(knn_model, test_x)
 
 ```{r comparison}
 # model comparison using confusion matrix
-LR_CM_pred <- confusionMatrix(test_results$LR, test_results$obs, positive = "X1")
-LDA_CM_pred <- confusionMatrix(test_results$LDA, test_results$obs, positive = "X1")
-PLR_CM_pred <- confusionMatrix(test_results$PLR, test_results$obs, positive = "X1")
-NSC_CM_pred <- confusionMatrix(test_results$NSC, test_results$obs, positive = "X1")
-nnet_CM_pred <- confusionMatrix(test_results$nnet, test_results$obs, positive = "X1")
-svm_CM_pred <- confusionMatrix(test_results$svm, test_results$obs, positive = "X1")
-knn_CM_pred <- confusionMatrix(test_results$knn, test_results$obs, positive = "X1")
+LR_CM_pred <- confusionMatrix(test_results$LR, 
+                              test_results$obs, 
+                              positive = "X1")
+LDA_CM_pred <- confusionMatrix(test_results$LDA, 
+                               test_results$obs, 
+                               positive = "X1")
+PLR_CM_pred <- confusionMatrix(test_results$PLR, 
+                               test_results$obs, 
+                               positive = "X1")
+NSC_CM_pred <- confusionMatrix(test_results$NSC, 
+                               test_results$obs, 
+                               positive = "X1")
+nnet_CM_pred <- confusionMatrix(test_results$nnet, 
+                                test_results$obs, 
+                                positive = "X1")
+svm_CM_pred <- confusionMatrix(test_results$svm, 
+                               test_results$obs, 
+                               positive = "X1")
+knn_CM_pred <- confusionMatrix(test_results$knn, 
+                               test_results$obs, 
+                               positive = "X1")
 
-#sens and spec are temporary variables to be overwritten with each model
-#for the purpose of saving result in their own permanent variable
+#sens and spec are temporary variables to be overwritten with 
+#each model for the purpose of saving result in their own 
+# permanent variable
 sens <- LR_CM_pred$byClass['Sensitivity']
 spec <- LR_CM_pred$byClass['Specificity']
 LR_harm_pred <- (2 * sens * spec) / (sens + spec)
@@ -541,13 +617,20 @@ spec <- knn_CM_pred$byClass['Specificity']
 knn_harm_pred <- (2 * sens * spec) / (sens + spec)
 
 #ROC
-LR_roc_pred <- suppressWarnings(roc(test_results$obs, as.numeric(test_results$LR)))
-LDA_roc_pred <- suppressWarnings(roc(test_results$obs, as.numeric(test_results$LDA)))
-PLR_roc_pred <- suppressWarnings(roc(test_results$obs, as.numeric(test_results$PLR)))
-NSC_roc_pred <- suppressWarnings(roc(test_results$obs, as.numeric(test_results$NSC)))
-nnet_roc_pred <- suppressWarnings(roc(test_results$obs, as.numeric(test_results$nnet)))
-svm_roc_pred <- suppressWarnings(roc(test_results$obs, as.numeric(test_results$svm)))
-knn_roc_pred <- suppressWarnings(roc(test_results$obs, as.numeric(test_results$knn)))
+LR_roc_pred <- suppressWarnings(roc(test_results$obs, 
+                                    as.numeric(test_results$LR)))
+LDA_roc_pred <- suppressWarnings(roc(test_results$obs, 
+                                     as.numeric(test_results$LDA)))
+PLR_roc_pred <- suppressWarnings(roc(test_results$obs, 
+                                     as.numeric(test_results$PLR)))
+NSC_roc_pred <- suppressWarnings(roc(test_results$obs, 
+                                     as.numeric(test_results$NSC)))
+nnet_roc_pred <- suppressWarnings(roc(test_results$obs, 
+                                      as.numeric(test_results$nnet)))
+svm_roc_pred <- suppressWarnings(roc(test_results$obs, 
+                                     as.numeric(test_results$svm)))
+knn_roc_pred <- suppressWarnings(roc(test_results$obs, 
+                                     as.numeric(test_results$knn)))
 
 Test_performance <-  data.frame(
   Model = c("LogisticRegression", "LinearDiscriminant",
@@ -571,11 +654,17 @@ Test_performance <-  data.frame(
     svm_roc_pred$auc,
     knn_roc_pred$auc
   ),
-  Harmonic = c(LR_harm_pred, LDA_harm_pred, PLR_harm_pred, NSC_harm_pred,
-               nnet_harm_pred, svm_harm_pred, knn_harm_pred)
+  Harmonic = c(LR_harm_pred, 
+               LDA_harm_pred, 
+               PLR_harm_pred, 
+               NSC_harm_pred,
+               nnet_harm_pred, 
+               svm_harm_pred, 
+               knn_harm_pred)
 )
 Test_performance |> arrange(desc(Harmonic))
 ```
+
 The KNN model performs the best on the test data. This model is selected as the optimal model.
 
 ```{r roc_plot}
@@ -587,15 +676,20 @@ lines(knn_roc_pred, col = "pink")
 lines(LR_roc_pred, col = "purple")
 lines(NSC_roc_pred, col = "orange")
 lines(nnet_roc_pred, col = "yellow")
-legend("bottomright", legend = c("LDA", "PLR", "SVM", "KNN", "LR", "NSC", "NN"), col = c("red", "blue", "green", "pink", "purple", "orange", "yellow"), lwd = 2)
+legend("bottomright", 
+       legend = c("LDA", "PLR", "SVM", "KNN", "LR", "NSC", "NN"), 
+       col = c("red", "blue", "green", "pink", "purple", "orange", "yellow"), 
+       lwd = 2)
 ```
 
 ```{r test_CI}
 # calculate 95% confidence intervals for harmonic test results
 test_harmonic <- Test_performance[, c('Model', 'Harmonic')] %>%
   mutate(
-    LowerCI = Harmonic - qt(0.975, df = nrow(test_x) - 1) * (sd(Harmonic) / sqrt(nrow(test_x))),
-    UpperCI = Harmonic + qt(0.975, df = nrow(test_x) - 1) * (sd(Harmonic) / sqrt(nrow(test_x)))
+    LowerCI = Harmonic - qt(0.975, df = nrow(test_x) - 1) * 
+      (sd(Harmonic) / sqrt(nrow(test_x))),
+    UpperCI = Harmonic + qt(0.975, df = nrow(test_x) - 1) * 
+      (sd(Harmonic) / sqrt(nrow(test_x)))
   )
 
 # plot harmonic confidence intervals
@@ -610,8 +704,10 @@ ggplot(test_harmonic, aes(x = Harmonic, y = Model)) +
 # calculate 95% confidence intervals for auc test results
 test_auc <- Test_performance[, c('Model', 'AUC')] %>%
   mutate(
-    LowerCI = AUC - qt(0.975, df = nrow(test_x) - 1) * (sd(AUC) / sqrt(nrow(test_x))),
-    UpperCI = AUC + qt(0.975, df = nrow(test_x) - 1) * (sd(AUC) / sqrt(nrow(test_x)))
+    LowerCI = AUC - qt(0.975, df = nrow(test_x) - 1) * 
+      (sd(AUC) / sqrt(nrow(test_x))),
+    UpperCI = AUC + qt(0.975, df = nrow(test_x) - 1) * 
+      (sd(AUC) / sqrt(nrow(test_x)))
   )
 
 # plot auc confidence intervals
@@ -626,8 +722,10 @@ ggplot(test_auc, aes(x = AUC, y = Model)) +
 # calculate 95% confidence intervals for accuracy test results
 test_accuracy <- Test_performance[, c('Model', 'Accuracy')] %>%
   mutate(
-    LowerCI = Accuracy - qt(0.975, df = nrow(test_x) - 1) * (sd(Accuracy) / sqrt(nrow(test_x))),
-    UpperCI = Accuracy + qt(0.975, df = nrow(test_x) - 1) * (sd(Accuracy) / sqrt(nrow(test_x)))
+    LowerCI = Accuracy - qt(0.975, df = nrow(test_x) - 1) * 
+      (sd(Accuracy) / sqrt(nrow(test_x))),
+    UpperCI = Accuracy + qt(0.975, df = nrow(test_x) - 1) * 
+      (sd(Accuracy) / sqrt(nrow(test_x)))
   )
 
 # plot auc confidence intervals
@@ -644,8 +742,20 @@ ggplot(test_accuracy, aes(x = Accuracy, y = Model)) +
 plots <- list()
 top_vars <- list()
 
-model_names <- c("LR_model", "LDA_model", "PLR_model", "NSC_model", "nn_model", "svm_model", "knn_model")
-titles <- c("Logistic Regression", "LDA", "Penalized Logistic Regression", "NSC", "Neural Network", "SVM", "k-NN")
+model_names <- c("LR_model", 
+                 "LDA_model", 
+                 "PLR_model", 
+                 "NSC_model", 
+                 "nn_model", 
+                 "svm_model", 
+                 "knn_model")
+titles <- c("Logistic Regression", 
+            "LDA", 
+            "Penalized Logistic Regression", 
+            "NSC", 
+            "Neural Network", 
+            "SVM", 
+            "k-NN")
 
 for (i in seq_along(model_names)) {
     model <- get(model_names[i])
@@ -659,33 +769,41 @@ for (i in seq_along(model_names)) {
     if (!("Overall" %in% colnames(imp_var_df))) {
         imp_var_df <- imp_var_df %>%
             rowwise() %>%
-            mutate(Overall = mean(c_across(starts_with("X")), na.rm = TRUE)) %>%
+            mutate(Overall = mean(c_across(starts_with("X")), 
+                                  na.rm = TRUE)) %>%
             ungroup()
     }
     
-    top5_imp_var <- imp_var_df %>% arrange(desc(Overall)) %>% slice(1:5)
+    top5_imp_var <- imp_var_df %>% 
+      arrange(desc(Overall)) %>% slice(1:5)
     
-    p <- ggplot(top5_imp_var, aes(x = reorder(Variable, Overall), y = Overall)) +
-        geom_bar(stat = "identity") +
-        coord_flip() +
-        ggtitle(title) +
-        theme_minimal() +
-        labs(x = "Variable", y = "Importance")
+    p <- ggplot(top5_imp_var, 
+                aes(x = reorder(Variable, Overall), 
+                    y = Overall)) +
+      geom_bar(stat = "identity") +
+      coord_flip() +
+      ggtitle(title) +
+      theme_minimal() +
+      labs(x = "Variable", y = "Importance")
     
     plots[[i]] <- p
     top_vars[[i]] <- top5_imp_var$Variable
 
 }
 all_top_vars <- unlist(top_vars)
-most_common_vars <- names(head(sort(table(all_top_vars), decreasing = TRUE), 5))
+most_common_vars <- names(head(sort(table(all_top_vars), 
+                                    decreasing = TRUE), 5))
 most_common_vars
 
 do.call(grid.arrange, c(plots, ncol = 2))
 ```
+
 The most importance variables among all the models appear to be cp, ca, exang, thal.2, and sex.
 
 ## Optimal model
+
 The KNN model was chosen as the optimal model due to the best performance in terms of AUC, harmonic mean between sensitivity and specificity, and accuracy.
+
 ```{r chosen_model}
 # plot kNN variable importance
 plot(varImp(knn_model, scale = FALSE), main = "kNN Variable Importance")
